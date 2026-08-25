@@ -1,0 +1,29 @@
+# Rust
+target/
+**/*.rs.bk
+*.pdb
+
+# .NET / C#
+[Bb]in/
+[Oo]bj/
+[Aa]pp[Dd]ata/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+# Visual Studio / Rider / JetBrains / VS Code
+.vs/
+.idea/
+*.DotSettings.user
+
+# OS Files
+.DS_Store
+Thumbs.db
+[Dd]esktop.ini
+
+# Crash logs & temp
+*.log
+*.tmp
+*.temp

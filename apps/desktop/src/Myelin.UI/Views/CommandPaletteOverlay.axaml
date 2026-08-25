@@ -1,0 +1,83 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Myelin.UI.ViewModels"
+             xmlns:views="using:Myelin.UI.Views"
+             x:Class="Myelin.UI.Views.CommandPaletteOverlay"
+             x:DataType="vm:CommandPaletteViewModel"
+             IsVisible="{Binding IsOpen}">
+
+    <!-- Backdrop Dimmer -->
+    <Panel Background="#40000000" PointerPressed="OnBackdropPressed">
+        <!-- Floating Centered Modal Card (600px VS Code Quick Pick) -->
+        <Border Width="600" 
+                MaxHeight="480"
+                VerticalAlignment="Top" 
+                Margin="0,38,0,0"
+                Background="#1F1F1F"
+                BorderBrush="#333333"
+                BorderThickness="1"
+                CornerRadius="6"
+                BoxShadow="0 8 28 0 #70000000">
+
+            <Grid RowDefinitions="Auto,*">
+                <!-- Search Input Header -->
+                <Border Grid.Row="0" Background="#1F1F1F" Padding="8,8,8,6" CornerRadius="6,6,0,0">
+                    <TextBox x:Name="SearchBox"
+                             Text="{Binding SearchText, Mode=TwoWay}"
+                             Watermark="Type a command or file name..."
+                             FontSize="13"
+                             Height="32"
+                             Background="#313131"
+                             Foreground="#FFFFFF"
+                             BorderThickness="1"
+                             BorderBrush="#0078D4"
+                             CornerRadius="4"
+                             Padding="8,6"
+                             KeyDown="OnSearchBoxKeyDown" />
+                </Border>
+
+                <!-- Filtered Result List -->
+                <ListBox x:Name="ResultsList"
+                         Grid.Row="1"
+                         ItemsSource="{Binding FilteredItems}"
+                         SelectedItem="{Binding SelectedItem}"
+                         Background="Transparent"
+                         MaxHeight="400"
+                         Margin="4"
+                         DoubleTapped="OnItemDoubleTapped">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:PaletteItem}">
+                            <Grid ColumnDefinitions="Auto,*,Auto" Margin="6,4">
+                                <!-- Dynamic Icon: Material Icon for files, Codicon for commands -->
+                                <Panel Grid.Column="0" Margin="0,0,10,0" VerticalAlignment="Center">
+                                    <Image Source="{Binding FilePath, Converter={x:Static views:MaterialIconImageConverter.Instance}}" 
+                                           Width="16" Height="16" 
+                                           IsVisible="{Binding IsFile}" />
+                                    <Path Data="{StaticResource IconCommand}" Width="14" Height="14" Fill="#0078D4" Stretch="Uniform" 
+                                          IsVisible="{Binding !IsFile}" />
+                                </Panel>
+
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="SemiBold" Foreground="#E0E0E0" />
+                                    <TextBlock Text="{Binding Subtitle}" FontSize="11" Foreground="#858585" 
+                                               IsVisible="{Binding Subtitle, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                </StackPanel>
+
+                                <Border Grid.Column="2" 
+                                        Background="#333333" 
+                                        BorderBrush="#454545"
+                                        BorderThickness="1"
+                                        CornerRadius="3" 
+                                        Padding="6,2" 
+                                        VerticalAlignment="Center"
+                                        IsVisible="{Binding Shortcut, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                    <TextBlock Text="{Binding Shortcut}" FontSize="11" Foreground="#CCCCCC" />
+                                </Border>
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </Border>
+    </Panel>
+</UserControl>

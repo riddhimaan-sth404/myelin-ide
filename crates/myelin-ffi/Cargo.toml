@@ -1,0 +1,21 @@
+[package]
+name = "myelin-ffi"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+myelin-core = { path = "../myelin-core" }
+myelin-text = { path = "../myelin-text" }
+myelin-terminal = { path = "../myelin-terminal" }
+parking_lot.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+libc = "0.2"
+
+[build-dependencies]
+csbindgen.workspace = true

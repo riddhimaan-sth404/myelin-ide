@@ -1,0 +1,103 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ========================================================================= -->
+    <!-- VS CODE DARK MODERN / DARK+ EXACT COLOR TOKENS                            -->
+    <!-- ========================================================================= -->
+
+    <!-- 1. Window & TitleBar -->
+    <Color x:Key="TitleBarBackgroundColor">#181818</Color>
+    <Color x:Key="TitleBarBorderColor">#2B2B2B</Color>
+    <Color x:Key="TitleBarForegroundColor">#CCCCCC</Color>
+    <Color x:Key="CommandCenterBackgroundColor">#282828</Color>
+    <Color x:Key="CommandCenterBorderColor">#333333</Color>
+
+    <SolidColorBrush x:Key="TitleBarBackgroundBrush" Color="{StaticResource TitleBarBackgroundColor}" />
+    <SolidColorBrush x:Key="TitleBarBorderBrush" Color="{StaticResource TitleBarBorderColor}" />
+    <SolidColorBrush x:Key="TitleBarForegroundBrush" Color="{StaticResource TitleBarForegroundColor}" />
+    <SolidColorBrush x:Key="CommandCenterBackgroundBrush" Color="{StaticResource CommandCenterBackgroundColor}" />
+    <SolidColorBrush x:Key="CommandCenterBorderBrush" Color="{StaticResource CommandCenterBorderColor}" />
+
+    <!-- 2. Activity Bar (48px Left Rail) -->
+    <Color x:Key="ActivityBarBackgroundColor">#181818</Color>
+    <Color x:Key="ActivityBarBorderColor">#2B2B2B</Color>
+    <Color x:Key="ActivityBarActiveIndicatorColor">#0078D4</Color>
+    <Color x:Key="ActivityBarActiveForegroundColor">#FFFFFF</Color>
+    <Color x:Key="ActivityBarInactiveForegroundColor">#858585</Color>
+
+    <SolidColorBrush x:Key="ActivityBarBackgroundBrush" Color="{StaticResource ActivityBarBackgroundColor}" />
+    <SolidColorBrush x:Key="ActivityBarBorderBrush" Color="{StaticResource ActivityBarBorderColor}" />
+    <SolidColorBrush x:Key="ActivityBarActiveIndicatorBrush" Color="{StaticResource ActivityBarActiveIndicatorColor}" />
+    <SolidColorBrush x:Key="ActivityBarActiveForegroundBrush" Color="{StaticResource ActivityBarActiveForegroundColor}" />
+    <SolidColorBrush x:Key="ActivityBarInactiveForegroundBrush" Color="{StaticResource ActivityBarInactiveForegroundColor}" />
+
+    <!-- 3. Primary SideBar (Explorer / Views) -->
+    <Color x:Key="SideBarBackgroundColor">#181818</Color>
+    <Color x:Key="SideBarBorderColor">#2B2B2B</Color>
+    <Color x:Key="SideBarHeaderForegroundColor">#BBBBBB</Color>
+    <Color x:Key="SideBarSectionHeaderBackgroundColor">#181818</Color>
+    <Color x:Key="ListHoverBackgroundColor">#222222</Color>
+    <Color x:Key="ListActiveSelectionBackgroundColor">#04395E</Color>
+    <Color x:Key="ListInactiveSelectionBackgroundColor">#2A2A2A</Color>
+
+    <SolidColorBrush x:Key="SideBarBackgroundBrush" Color="{StaticResource SideBarBackgroundColor}" />
+    <SolidColorBrush x:Key="SideBarBorderBrush" Color="{StaticResource SideBarBorderColor}" />
+    <SolidColorBrush x:Key="SideBarHeaderForegroundBrush" Color="{StaticResource SideBarHeaderForegroundColor}" />
+    <SolidColorBrush x:Key="SideBarSectionHeaderBackgroundBrush" Color="{StaticResource SideBarSectionHeaderBackgroundColor}" />
+    <SolidColorBrush x:Key="ListHoverBackgroundBrush" Color="{StaticResource ListHoverBackgroundColor}" />
+    <SolidColorBrush x:Key="ListActiveSelectionBackgroundBrush" Color="{StaticResource ListActiveSelectionBackgroundColor}" />
+    <SolidColorBrush x:Key="ListInactiveSelectionBackgroundBrush" Color="{StaticResource ListInactiveSelectionBackgroundColor}" />
+
+    <!-- 4. Editor Area & Tabs -->
+    <Color x:Key="EditorBackgroundColor">#1F1F1F</Color>
+    <Color x:Key="EditorForegroundColor">#D4D4D4</Color>
+    <Color x:Key="TabContainerBackgroundColor">#1F1F1F</Color>
+    <Color x:Key="TabActiveBackgroundColor">#1F1F1F</Color>
+    <Color x:Key="TabInactiveBackgroundColor">#181818</Color>
+    <Color x:Key="TabActiveBorderTopColor">#0078D4</Color>
+    <Color x:Key="TabBorderColor">#2B2B2B</Color>
+    <Color x:Key="TabActiveForegroundColor">#FFFFFF</Color>
+    <Color x:Key="TabInactiveForegroundColor">#969696</Color>
+    <Color x:Key="BreadcrumbsBackgroundColor">#1F1F1F</Color>
+    <Color x:Key="BreadcrumbsForegroundColor">#A0A0A0</Color>
+
+    <SolidColorBrush x:Key="EditorBackgroundBrush" Color="{StaticResource EditorBackgroundColor}" />
+    <SolidColorBrush x:Key="EditorForegroundBrush" Color="{StaticResource EditorForegroundColor}" />
+    <SolidColorBrush x:Key="TabContainerBackgroundBrush" Color="{StaticResource TabContainerBackgroundColor}" />
+    <SolidColorBrush x:Key="TabActiveBackgroundBrush" Color="{StaticResource TabActiveBackgroundColor}" />
+    <SolidColorBrush x:Key="TabInactiveBackgroundBrush" Color="{StaticResource TabInactiveBackgroundColor}" />
+    <SolidColorBrush x:Key="TabActiveBorderTopBrush" Color="{StaticResource TabActiveBorderTopColor}" />
+    <SolidColorBrush x:Key="TabBorderBrush" Color="{StaticResource TabBorderColor}" />
+    <SolidColorBrush x:Key="TabActiveForegroundBrush" Color="{StaticResource TabActiveForegroundColor}" />
+    <SolidColorBrush x:Key="TabInactiveForegroundBrush" Color="{StaticResource TabInactiveForegroundColor}" />
+    <SolidColorBrush x:Key="BreadcrumbsBackgroundBrush" Color="{StaticResource BreadcrumbsBackgroundColor}" />
+    <SolidColorBrush x:Key="BreadcrumbsForegroundBrush" Color="{StaticResource BreadcrumbsForegroundColor}" />
+
+    <!-- 5. Bottom Panel (Terminal / Output) -->
+    <Color x:Key="PanelBackgroundColor">#181818</Color>
+    <Color x:Key="PanelBorderColor">#2B2B2B</Color>
+    <Color x:Key="PanelActiveBorderColor">#0078D4</Color>
+    <Color x:Key="PanelActiveForegroundColor">#FFFFFF</Color>
+    <Color x:Key="PanelInactiveForegroundColor">#969696</Color>
+
+    <SolidColorBrush x:Key="PanelBackgroundBrush" Color="{StaticResource PanelBackgroundColor}" />
+    <SolidColorBrush x:Key="PanelBorderBrush" Color="{StaticResource PanelBorderColor}" />
+    <SolidColorBrush x:Key="PanelActiveBorderBrush" Color="{StaticResource PanelActiveBorderColor}" />
+    <SolidColorBrush x:Key="PanelActiveForegroundBrush" Color="{StaticResource PanelActiveForegroundColor}" />
+    <SolidColorBrush x:Key="PanelInactiveForegroundBrush" Color="{StaticResource PanelInactiveForegroundColor}" />
+
+    <!-- 6. Status Bar (22px) -->
+    <Color x:Key="StatusBarBackgroundColor">#007ACC</Color>
+    <Color x:Key="StatusBarForegroundColor">#FFFFFF</Color>
+    <Color x:Key="StatusBarRemoteBackgroundColor">#16825D</Color>
+
+    <SolidColorBrush x:Key="StatusBarBackgroundBrush" Color="{StaticResource StatusBarBackgroundColor}" />
+    <SolidColorBrush x:Key="StatusBarForegroundBrush" Color="{StaticResource StatusBarForegroundColor}" />
+    <SolidColorBrush x:Key="StatusBarRemoteBackgroundBrush" Color="{StaticResource StatusBarRemoteBackgroundColor}" />
+
+    <!-- 7. Focus & Badges -->
+    <SolidColorBrush x:Key="FocusBorderBrush" Color="#0078D4" />
+    <SolidColorBrush x:Key="KeybindingBadgeBackgroundBrush" Color="#333333" />
+    <SolidColorBrush x:Key="KeybindingBadgeBorderBrush" Color="#454545" />
+
+</ResourceDictionary>

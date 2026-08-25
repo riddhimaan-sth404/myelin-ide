@@ -1,0 +1,163 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Myelin.UI.App"
+             RequestedThemeVariant="Dark">
+    
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceInclude Source="/Styles/VSCodeTheme.axaml" />
+                <ResourceInclude Source="/Styles/Icons.axaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+
+    <Application.Styles>
+        <FluentTheme />
+        
+        <!-- Standard VS Code Typography & Hierarchy -->
+        <Style Selector="Window">
+            <Setter Property="FontFamily" Value="Segoe UI, Inter, -apple-system, BlinkMacSystemFont, Roboto, Helvetica Neue, sans-serif" />
+            <Setter Property="Background" Value="{StaticResource EditorBackgroundBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource EditorForegroundBrush}" />
+        </Style>
+
+        <!-- Seamless VS Code Buttons with 100ms Hover Transition -->
+        <Style Selector="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Padding" Value="6,4" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.1" />
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.1" />
+                </Transitions>
+            </Setter>
+        </Style>
+
+        <Style Selector="Button:pointerover">
+            <Setter Property="Opacity" Value="0.85" />
+        </Style>
+
+        <!-- Menu & Menu Items -->
+        <Style Selector="Menu">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <Style Selector="MenuItem">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+
+        <!-- ListBox Items (Compact 22-26px Rows with VS Code Selection) -->
+        <Style Selector="ListBoxItem">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="MinHeight" Value="22" />
+        </Style>
+
+        <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource ListHoverBackgroundBrush}" />
+        </Style>
+
+        <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource ListActiveSelectionBackgroundBrush}" />
+        </Style>
+
+        <!-- Tab Strip ListBox Styling (Clean seamless tabs) -->
+        <Style Selector="ListBox.tab-strip">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="0" />
+        </Style>
+
+        <!-- Override Fluent ListBox internal template parts via /template/ selectors -->
+        <Style Selector="ListBox.tab-strip /template/ Border">
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+
+        <Style Selector="ListBox.tab-strip /template/ ScrollViewer">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+        </Style>
+
+        <Style Selector="ListBox.tab-strip /template/ ScrollContentPresenter">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+        </Style>
+
+        <Style Selector="ListBox.tab-strip ListBoxItem">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="0" />
+        </Style>
+
+        <Style Selector="ListBox.tab-strip ListBoxItem:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+
+        <Style Selector="ListBox.tab-strip ListBoxItem:selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+
+        <!-- TreeView Items (22px Compact Rows) -->
+        <Style Selector="TreeViewItem">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="MinHeight" Value="22" />
+            <Setter Property="Padding" Value="0" />
+        </Style>
+
+        <Style Selector="TreeViewItem:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource ListHoverBackgroundBrush}" />
+        </Style>
+
+        <Style Selector="TreeViewItem:selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource ListActiveSelectionBackgroundBrush}" />
+        </Style>
+
+        <!-- GridSplitter with VS Code Active Blue Accent on Hover -->
+        <Style Selector="GridSplitter">
+            <Setter Property="Background" Value="{StaticResource TitleBarBorderBrush}" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.1" />
+                </Transitions>
+            </Setter>
+        </Style>
+
+        <Style Selector="GridSplitter:pointerover">
+            <Setter Property="Background" Value="{StaticResource FocusBorderBrush}" />
+        </Style>
+
+        <!-- TextBox Input Styling -->
+        <Style Selector="TextBox">
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Background" Value="#313131" />
+            <Setter Property="Foreground" Value="#CCCCCC" />
+            <Setter Property="BorderBrush" Value="#3C3C3C" />
+            <Setter Property="SelectionBrush" Value="#264F78" />
+        </Style>
+
+        <Style Selector="TextBox:focus">
+            <Setter Property="BorderBrush" Value="{StaticResource FocusBorderBrush}" />
+        </Style>
+
+        <!-- Overlay ScrollBars -->
+        <Style Selector="ScrollBar">
+            <Setter Property="AllowAutoHide" Value="True" />
+        </Style>
+
+    </Application.Styles>
+</Application>

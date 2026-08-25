@@ -1,0 +1,603 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Myelin.UI.ViewModels"
+        xmlns:views="using:Myelin.UI.Views"
+        xmlns:models="using:Myelin.Core.Models"
+        x:Class="Myelin.UI.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="Myelin IDE"
+        Width="1340" Height="860"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="35"
+        ExtendClientAreaChromeHints="NoChrome"
+        Background="{StaticResource EditorBackgroundBrush}"
+        Foreground="{StaticResource EditorForegroundBrush}">
+
+    <!-- Global VS Code Shortcut Key Bindings -->
+    <Window.KeyBindings>
+        <KeyBinding Gesture="Ctrl+P" Command="{Binding OpenQuickFileCommand}" />
+        <KeyBinding Gesture="Ctrl+Shift+P" Command="{Binding OpenCommandPaletteCommand}" />
+        <KeyBinding Gesture="Ctrl+B" Command="{Binding ToggleSidebarCommand}" />
+        <KeyBinding Gesture="Ctrl+J" Command="{Binding ToggleTerminalCommand}" />
+        <KeyBinding Gesture="Ctrl+OemTilde" Command="{Binding ToggleTerminalCommand}" />
+        <KeyBinding Gesture="Ctrl+S" Command="{Binding SaveCurrentCommand}" />
+        <KeyBinding Gesture="Ctrl+N" Command="{Binding NewFileCommand}" />
+        <KeyBinding Gesture="Ctrl+Z" Command="{Binding UndoCurrentCommand}" />
+        <KeyBinding Gesture="Ctrl+Y" Command="{Binding RedoCurrentCommand}" />
+        <KeyBinding Gesture="Ctrl+Shift+B" Command="{Binding RunCargoTaskCommand}" CommandParameter="build" />
+        <KeyBinding Gesture="F5" Command="{Binding RunCargoTaskCommand}" CommandParameter="run" />
+    </Window.KeyBindings>
+
+    <Grid x:Name="MainRootGrid">
+        <!-- Main VS Code Workbench Layout (TitleBar, Body, StatusBar) -->
+        <Grid RowDefinitions="35,*,22">
+            
+            <!-- ========================================================================= -->
+            <!-- 1. CUSTOM VS CODE TITLE BAR & MENUS & COMMAND CENTER (35px)               -->
+            <!-- ========================================================================= -->
+            <Border Grid.Row="0" 
+                    Background="{StaticResource TitleBarBackgroundBrush}" 
+                    BorderThickness="0"
+                    PointerPressed="OnTitleBarPointerPressed">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    
+                    <!-- Left: App Icon & Menu Bar Directly in the Title Bar -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center" Margin="10,0,0,0">
+                        <Path Data="{StaticResource IconCommand}" Width="15" Height="15" Fill="#0078D4" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <Menu Background="Transparent" Foreground="{StaticResource TitleBarForegroundBrush}">
+                            <MenuItem Header="_File">
+                                <MenuItem Header="_New Text File" Command="{Binding NewFileCommand}" InputGesture="Ctrl+N" />
+                                <MenuItem Header="_New Window" Click="OnNewWindowClick" InputGesture="Ctrl+Shift+N" />
+                                <Separator />
+                                <MenuItem Header="_Open File..." Click="OnOpenFileClick" InputGesture="Ctrl+O" />
+                                <MenuItem Header="_Open Folder..." Click="OnOpenFolderClick" InputGesture="Ctrl+Shift+O" />
+                                <Separator />
+                                <MenuItem Header="_Save" Command="{Binding SaveCurrentCommand}" InputGesture="Ctrl+S" />
+                                <MenuItem Header="Save _As..." Click="OnSaveAsClick" InputGesture="Ctrl+Shift+S" />
+                                <MenuItem Header="Save A_ll" Click="OnSaveAllClick" />
+                                <Separator />
+                                <MenuItem Header="_Close Editor" Click="OnCloseCurrentTabClick" InputGesture="Ctrl+W" />
+                                <MenuItem Header="Close A_ll Editors" Click="OnCloseAllTabsClick" InputGesture="Ctrl+Shift+W" />
+                                <MenuItem Header="Close _Folder" Click="OnCloseFolderClick" />
+                                <Separator />
+                                <MenuItem Header="E_xit" Click="OnExitClick" InputGesture="Alt+F4" />
+                            </MenuItem>
+                            <MenuItem Header="_Edit">
+                                <MenuItem Header="_Undo" Command="{Binding UndoCurrentCommand}" InputGesture="Ctrl+Z" />
+                                <MenuItem Header="_Redo" Command="{Binding RedoCurrentCommand}" InputGesture="Ctrl+Y" />
+                                <Separator />
+                                <MenuItem Header="Cu_t" Click="OnCutClick" InputGesture="Ctrl+X" />
+                                <MenuItem Header="_Copy" Click="OnCopyClick" InputGesture="Ctrl+C" />
+                                <MenuItem Header="_Paste" Click="OnPasteClick" InputGesture="Ctrl+V" />
+                                <Separator />
+                                <MenuItem Header="_Find in Files" Command="{Binding OpenCommandPaletteCommand}" InputGesture="Ctrl+Shift+F" />
+                            </MenuItem>
+                            <MenuItem Header="_Selection">
+                                <MenuItem Header="_Select All" Click="OnSelectAllClick" InputGesture="Ctrl+A" />
+                                <MenuItem Header="_Expand Selection" Click="OnExpandSelectionClick" InputGesture="Shift+Alt+Right" />
+                                <MenuItem Header="_Shrink Selection" Click="OnShrinkSelectionClick" InputGesture="Shift+Alt+Left" />
+                                <Separator />
+                                <MenuItem Header="Copy Line _Up" Click="OnCopyLineUpClick" InputGesture="Shift+Alt+Up" />
+                                <MenuItem Header="Copy Line _Down" Click="OnCopyLineDownClick" InputGesture="Shift+Alt+Down" />
+                                <MenuItem Header="Move Line U_p" Click="OnMoveLineUpClick" InputGesture="Alt+Up" />
+                                <MenuItem Header="Move Line D_own" Click="OnMoveLineDownClick" InputGesture="Alt+Down" />
+                            </MenuItem>
+                            <MenuItem Header="_View">
+                                <MenuItem Header="_Command Palette..." Command="{Binding OpenCommandPaletteCommand}" InputGesture="Ctrl+Shift+P" />
+                                <MenuItem Header="_Open View..." Command="{Binding OpenQuickFileCommand}" />
+                                <Separator />
+                                <MenuItem Header="_Appearance">
+                                    <MenuItem Header="_Toggle Primary Side Bar" Command="{Binding ToggleSidebarCommand}" InputGesture="Ctrl+B" />
+                                    <MenuItem Header="_Toggle Panel" Click="OnToggleTerminalClick" InputGesture="Ctrl+J" />
+                                    <MenuItem Header="_Toggle Full Screen" Click="OnToggleFullScreenClick" InputGesture="F11" />
+                                </MenuItem>
+                                <Separator />
+                                <MenuItem Header="_Explorer" Command="{Binding SelectActivityCommand}" CommandParameter="0" InputGesture="Ctrl+Shift+E" />
+                                <MenuItem Header="_Search" Command="{Binding SelectActivityCommand}" CommandParameter="1" InputGesture="Ctrl+Shift+F" />
+                                <MenuItem Header="_Source Control" Command="{Binding SelectActivityCommand}" CommandParameter="2" InputGesture="Ctrl+Shift+G" />
+                                <Separator />
+                                <MenuItem Header="_Problems" Click="OnProblemsTabClick" InputGesture="Ctrl+Shift+M" />
+                                <MenuItem Header="_Output" Click="OnOutputTabClick" />
+                                <MenuItem Header="_Terminal" Click="OnTerminalTabClick" InputGesture="Ctrl+J" />
+                            </MenuItem>
+                            <MenuItem Header="_Go">
+                                <MenuItem Header="_Go to File..." Command="{Binding OpenQuickFileCommand}" InputGesture="Ctrl+P" />
+                                <MenuItem Header="_Go to Symbol..." Command="{Binding OpenCommandPaletteCommand}" InputGesture="Ctrl+T" />
+                                <Separator />
+                                <MenuItem Header="_Next Problem" Click="OnNextProblemClick" InputGesture="F8" />
+                                <MenuItem Header="_Previous Problem" Click="OnPreviousProblemClick" InputGesture="Shift+F8" />
+                            </MenuItem>
+                            <MenuItem Header="_Run">
+                                <MenuItem Header="_Start Debugging / Run" Click="OnCargoRunClick" InputGesture="F5" />
+                                <MenuItem Header="_Run Without Debugging" Click="OnCargoRunClick" InputGesture="Ctrl+F5" />
+                                <Separator />
+                                <MenuItem Header="_Cargo Build Workspace" Click="OnCargoBuildClick" InputGesture="Ctrl+Shift+B" />
+                                <MenuItem Header="_Cargo Check Workspace" Click="OnCargoCheckClick" />
+                                <MenuItem Header="_Cargo Test Workspace" Click="OnCargoTestClick" />
+                                <MenuItem Header="_Cargo Clean Workspace" Click="OnCargoCleanClick" />
+                            </MenuItem>
+                            <MenuItem Header="_Terminal">
+                                <MenuItem Header="_New Terminal" Click="OnTerminalTabClick" InputGesture="Ctrl+J" />
+                                <MenuItem Header="_Run Build Task..." Click="OnCargoBuildClick" InputGesture="Ctrl+Shift+B" />
+                                <Separator />
+                                <MenuItem Header="_Clear Terminal" Click="OnClearTerminalClick" InputGesture="Ctrl+K" />
+                            </MenuItem>
+                            <MenuItem Header="_Help">
+                                <MenuItem Header="_Welcome" Click="OnWelcomeClick" />
+                                <MenuItem Header="_Documentation" Click="OnDocumentationClick" />
+                                <MenuItem Header="_Show All Commands" Command="{Binding OpenCommandPaletteCommand}" InputGesture="Ctrl+Shift+P" />
+                                <Separator />
+                                <MenuItem Header="_About Myelin IDE" Click="OnAboutClick" />
+                            </MenuItem>
+                        </Menu>
+                    </StackPanel>
+
+                    <!-- Center: VS Code Command Center Search Pill (460px) -->
+                    <Button Grid.Column="1" 
+                            Width="460" Height="24" 
+                            HorizontalAlignment="Center" 
+                            VerticalAlignment="Center"
+                            Background="{StaticResource CommandCenterBackgroundBrush}" 
+                            BorderBrush="{StaticResource CommandCenterBorderBrush}" 
+                            BorderThickness="1"
+                            CornerRadius="5"
+                            Padding="8,0"
+                            Command="{Binding OpenQuickFileCommand}"
+                            ToolTip.Tip="Search files and commands (Ctrl+P)">
+                        <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
+                            <Path Grid.Column="0" Data="{StaticResource IconSearch}" Width="12" Height="12" Fill="#858585" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Grid.Column="1" Text="{Binding WorkspaceName, StringFormat='{}{0} — Search files and commands (Ctrl+P)'}" 
+                                       FontSize="12" Foreground="#858585" VerticalAlignment="Center" TextAlignment="Center" />
+                        </Grid>
+                    </Button>
+
+                    <!-- Right: Quick Layout Buttons + Window Controls (Minimize, Maximize, Close) -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="0" VerticalAlignment="Stretch">
+                        <Button Background="Transparent" Padding="8,4" VerticalAlignment="Center" Margin="0,0,6,0" Command="{Binding ToggleSidebarCommand}" ToolTip.Tip="Toggle Primary Side Bar (Ctrl+B)">
+                            <Path Data="{StaticResource IconExplorer}" Width="13" Height="13" Fill="#858585" Stretch="Uniform" />
+                        </Button>
+                        <Button Background="Transparent" Padding="8,4" VerticalAlignment="Center" Margin="0,0,10,0" Click="OnToggleTerminalClick" ToolTip.Tip="Toggle Panel (Ctrl+J)">
+                            <Path Data="{StaticResource IconTerminal}" Width="13" Height="13" Fill="#858585" Stretch="Uniform" />
+                        </Button>
+
+                        <!-- Window Control Buttons -->
+                        <!-- Minimize Button -->
+                        <Button Width="46" Height="35" Background="Transparent" BorderThickness="0" CornerRadius="0" Padding="0"
+                                HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                                Click="OnMinimizeClick" ToolTip.Tip="Minimize">
+                            <Path Data="M0,0 H10" Stroke="#CCCCCC" StrokeThickness="1" Width="10" Height="1" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                        </Button>
+
+                        <!-- Maximize / Restore Button -->
+                        <Button Width="46" Height="35" Background="Transparent" BorderThickness="0" CornerRadius="0" Padding="0"
+                                HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                                Click="OnMaximizeClick" ToolTip.Tip="Maximize">
+                            <Rectangle Width="10" Height="10" Stroke="#CCCCCC" StrokeThickness="1" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                        </Button>
+
+                        <!-- Close Button with VS Code Red Hover -->
+                        <Button Width="46" Height="35" Background="Transparent" BorderThickness="0" CornerRadius="0" Padding="0"
+                                HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                                Click="OnCloseWindowClick" ToolTip.Tip="Close">
+                            <Button.Styles>
+                                <Style Selector="Button:pointerover">
+                                    <Setter Property="Background" Value="#E81123" />
+                                </Style>
+                            </Button.Styles>
+                            <Path Data="{StaticResource IconClose}" Width="10" Height="10" Fill="#CCCCCC" Stretch="Uniform" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- ========================================================================= -->
+            <!-- 2. WORKBENCH BODY (ActivityBar + SideBar + Editor Area)                   -->
+            <!-- ========================================================================= -->
+            <Grid Grid.Row="1" ColumnDefinitions="48,Auto,*">
+                
+                <!-- 2.1 Activity Bar (48px Left Rail with 2px Active Indicator) -->
+                <Border Grid.Column="0" 
+                        Background="{StaticResource ActivityBarBackgroundBrush}" 
+                        BorderBrush="{StaticResource ActivityBarBorderBrush}" 
+                        BorderThickness="0,0,1,0">
+                    <DockPanel LastChildFill="False">
+                        <!-- Top Navigation Group -->
+                        <StackPanel DockPanel.Dock="Top">
+                            <!-- Explorer -->
+                            <Grid Height="48">
+                                <Border HorizontalAlignment="Left" Width="2" 
+                                        Background="{Binding ActiveActivityIndex, Converter={x:Static views:ActiveBorderConverter.Instance}, ConverterParameter=0}" />
+                                <Button Background="Transparent" 
+                                        Width="48" Height="48"
+                                        Padding="0"
+                                        HorizontalContentAlignment="Center"
+                                        VerticalContentAlignment="Center"
+                                        BorderThickness="0"
+                                        CornerRadius="0"
+                                        Command="{Binding SelectActivityCommand}"
+                                        CommandParameter="0"
+                                        ToolTip.Tip="Explorer (Ctrl+Shift+E)">
+                                    <Path Data="{StaticResource IconExplorer}" 
+                                          Width="20" Height="20" 
+                                          Fill="{Binding ActiveActivityIndex, Converter={x:Static views:ActivityColorConverter.Instance}, ConverterParameter=0}" 
+                                          Stretch="Uniform" />
+                                </Button>
+                            </Grid>
+
+                            <!-- Search -->
+                            <Grid Height="48">
+                                <Border HorizontalAlignment="Left" Width="2" 
+                                        Background="{Binding ActiveActivityIndex, Converter={x:Static views:ActiveBorderConverter.Instance}, ConverterParameter=1}" />
+                                <Button Background="Transparent" 
+                                        Width="48" Height="48"
+                                        Padding="0"
+                                        HorizontalContentAlignment="Center"
+                                        VerticalContentAlignment="Center"
+                                        BorderThickness="0"
+                                        CornerRadius="0"
+                                        Command="{Binding SelectActivityCommand}"
+                                        CommandParameter="1"
+                                        ToolTip.Tip="Search (Ctrl+Shift+F)">
+                                    <Path Data="{StaticResource IconSearch}" 
+                                          Width="20" Height="20" 
+                                          Fill="{Binding ActiveActivityIndex, Converter={x:Static views:ActivityColorConverter.Instance}, ConverterParameter=1}" 
+                                          Stretch="Uniform" />
+                                </Button>
+                            </Grid>
+
+                            <!-- Source Control -->
+                            <Grid Height="48">
+                                <Border HorizontalAlignment="Left" Width="2" 
+                                        Background="{Binding ActiveActivityIndex, Converter={x:Static views:ActiveBorderConverter.Instance}, ConverterParameter=2}" />
+                                <Button Background="Transparent" 
+                                        Width="48" Height="48"
+                                        Padding="0"
+                                        HorizontalContentAlignment="Center"
+                                        VerticalContentAlignment="Center"
+                                        BorderThickness="0"
+                                        CornerRadius="0"
+                                        Command="{Binding SelectActivityCommand}"
+                                        CommandParameter="2"
+                                        ToolTip.Tip="Source Control (Ctrl+Shift+G)">
+                                    <Path Data="{StaticResource IconSourceControl}" 
+                                          Width="20" Height="20" 
+                                          Fill="{Binding ActiveActivityIndex, Converter={x:Static views:ActivityColorConverter.Instance}, ConverterParameter=2}" 
+                                          Stretch="Uniform" />
+                                </Button>
+                            </Grid>
+                        </StackPanel>
+
+                        <!-- Bottom Settings Gear -->
+                        <Grid DockPanel.Dock="Bottom" Height="48">
+                            <Border HorizontalAlignment="Left" Width="2" 
+                                    Background="{Binding ActiveActivityIndex, Converter={x:Static views:ActiveBorderConverter.Instance}, ConverterParameter=3}" />
+                            <Button Background="Transparent" 
+                                    Width="48" Height="48"
+                                    Padding="0"
+                                    HorizontalContentAlignment="Center"
+                                    VerticalContentAlignment="Center"
+                                    BorderThickness="0"
+                                    CornerRadius="0"
+                                    Command="{Binding SelectActivityCommand}"
+                                    CommandParameter="3"
+                                    ToolTip.Tip="Settings">
+                                <Path Data="{StaticResource IconSettings}" 
+                                      Width="20" Height="20" 
+                                      Fill="{Binding ActiveActivityIndex, Converter={x:Static views:ActivityColorConverter.Instance}, ConverterParameter=3}" 
+                                      Stretch="Uniform" />
+                            </Button>
+                        </Grid>
+                    </DockPanel>
+                </Border>
+
+                <!-- 2.2 Primary Side Bar (260px) -->
+                <Grid Grid.Column="1" ColumnDefinitions="260,3" IsVisible="{Binding IsSidebarOpen}">
+                    <Border Grid.Column="0" Background="{StaticResource SideBarBackgroundBrush}">
+                        <DockPanel LastChildFill="True">
+                            <!-- SideBar Header (35px) -->
+                            <Border DockPanel.Dock="Top" Height="35" Padding="14,0" BorderBrush="{StaticResource SideBarBorderBrush}" BorderThickness="0,0,0,1">
+                                <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                                    <TextBlock Grid.Column="0" Text="{Binding ActiveSidebarTitle}" FontWeight="SemiBold" FontSize="11" 
+                                               Foreground="{StaticResource SideBarHeaderForegroundBrush}" VerticalAlignment="Center" />
+                                    <!-- Header Action Toolbar -->
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="3" VerticalAlignment="Center">
+                                        <Button Background="Transparent" Padding="4" Command="{Binding NewFileCommand}" ToolTip.Tip="New File">
+                                            <Path Data="{StaticResource IconNewFile}" Width="13" Height="13" Fill="#858585" Stretch="Uniform" />
+                                        </Button>
+                                        <Button Background="Transparent" Padding="4" Command="{Binding RefreshExplorerCommand}" ToolTip.Tip="Refresh Explorer">
+                                            <Path Data="{StaticResource IconRefresh}" Width="13" Height="13" Fill="#858585" Stretch="Uniform" />
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <!-- Section Header (22px Collapsible Pane Header) -->
+                            <Border DockPanel.Dock="Top" Height="22" Background="{StaticResource SideBarSectionHeaderBackgroundBrush}" Padding="8,0">
+                                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                    <Path Data="{StaticResource IconChevronDown}" Width="10" Height="10" Fill="#CCCCCC" Stretch="Uniform" VerticalAlignment="Center" />
+                                    <TextBlock Text="FOLDERS" FontWeight="Bold" FontSize="11" Foreground="#CCCCCC" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- SideBar Panel Switcher -->
+                            <Carousel SelectedIndex="{Binding ActiveActivityIndex}">
+                                <!-- 0: Explorer File Tree (Philipp Kief Material Icon Theme) -->
+                                <TreeView ItemsSource="{Binding RootNode.Children}"
+                                          SelectionChanged="OnFileSelected"
+                                          Background="Transparent"
+                                          Margin="2,4">
+                                    <TreeView.ItemTemplate>
+                                        <TreeDataTemplate DataType="{x:Type models:FileNode}" ItemsSource="{Binding Children}">
+                                            <StackPanel Orientation="Horizontal" Spacing="6" Height="22" VerticalAlignment="Center">
+                                                <Image Source="{Binding Converter={x:Static views:MaterialIconImageConverter.Instance}}" 
+                                                       Width="16" Height="16" 
+                                                       VerticalAlignment="Center" />
+                                                <TextBlock Text="{Binding Name}" FontSize="13" Foreground="#CCCCCC" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </TreeDataTemplate>
+                                    </TreeView.ItemTemplate>
+                                </TreeView>
+
+                                <!-- 1: Search Panel -->
+                                <StackPanel Margin="12" Spacing="10">
+                                    <TextBox Watermark="Search files..." Padding="8,6" />
+                                    <TextBlock Text="No search results yet." FontSize="12" Foreground="#888888" />
+                                </StackPanel>
+
+                                <!-- 2: Source Control Panel -->
+                                <StackPanel Margin="12" Spacing="10">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <Path Data="{StaticResource IconBranch}" Width="14" Height="14" Fill="#75BEFF" Stretch="Uniform" />
+                                        <TextBlock Text="{Binding GitBranch, StringFormat='{}Branch: {0}'}" FontSize="13" FontWeight="SemiBold" Foreground="#E0E0E0" />
+                                    </StackPanel>
+                                    <TextBlock Text="Working tree clean." FontSize="12" Foreground="#888888" />
+                                </StackPanel>
+
+                                <!-- 3: Settings Panel -->
+                                <StackPanel Margin="12" Spacing="8">
+                                    <TextBlock Text="Settings" FontWeight="Bold" FontSize="13" Foreground="#E0E0E0" />
+                                    <TextBlock Text="Theme: VS Code Dark Modern" FontSize="12" Foreground="#AAAAAA" />
+                                    <TextBlock Text="Icon Theme: Philipp Kief Material Icon Theme (Official 1,250+ Icons)" FontSize="12" Foreground="#AAAAAA" />
+                                    <TextBlock Text="Editor Font: Cascadia Code" FontSize="12" Foreground="#AAAAAA" />
+                                    <TextBlock Text="Terminal: Windows ConPTY (Native)" FontSize="12" Foreground="#AAAAAA" />
+                                </StackPanel>
+                            </Carousel>
+                        </DockPanel>
+                    </Border>
+
+                    <!-- Resizer Splitter -->
+                    <GridSplitter Grid.Column="1" Background="{StaticResource SideBarBorderBrush}" ResizeDirection="Columns" />
+                </Grid>
+
+                <!-- 2.3 Editor + Bottom Dock Region -->
+                <Grid Grid.Column="2" RowDefinitions="*,Auto">
+                    
+                    <!-- Editor Region (Tabs + Editor Canvas) -->
+                    <Grid Grid.Row="0" RowDefinitions="35,*" ClipToBounds="True">
+                        
+                        <!-- Tabs Bar (35px) -->
+                        <Border Grid.Row="0" Background="{StaticResource TabContainerBackgroundBrush}" BorderThickness="0" ClipToBounds="True">
+                            <ListBox ItemsSource="{Binding Tabs}"
+                                     SelectedItem="{Binding SelectedTab}"
+                                     Classes="tab-strip"
+                                     Background="Transparent"
+                                     Padding="0"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Hidden"
+                                     ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                                <ListBox.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ListBox.ItemsPanel>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:DocumentTabViewModel}">
+                                        <Border Height="35"
+                                                Background="{Binding $parent[ListBoxItem].IsSelected, Converter={x:Static views:TabBackgroundConverter.Instance}}"
+                                                BorderThickness="0"
+                                                Padding="10,0">
+                                            <Grid>
+                                                <!-- Active Top Accent Line (1px) -->
+                                                <Border VerticalAlignment="Top" Height="1" 
+                                                        Background="{StaticResource TabActiveBorderTopBrush}" 
+                                                        IsVisible="{Binding $parent[ListBoxItem].IsSelected}" />
+                                                
+                                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                                    <Image Source="{Binding FilePath, Converter={x:Static views:MaterialIconImageConverter.Instance}}" 
+                                                           Width="16" Height="16" 
+                                                           VerticalAlignment="Center" />
+                                                    <TextBlock Text="{Binding Title}" FontSize="13" 
+                                                               Foreground="{Binding $parent[ListBoxItem].IsSelected, Converter={x:Static views:TabForegroundConverter.Instance}, ConverterParameter=0}" 
+                                                               VerticalAlignment="Center" />
+                                                    
+                                                    <!-- Dirty Dot -->
+                                                    <Ellipse Width="7" Height="7" Fill="#EBCB8B" IsVisible="{Binding IsDirty}" VerticalAlignment="Center" />
+                                                    
+                                                    <!-- Close Tab Button -->
+                                                    <Button Background="Transparent" 
+                                                            BorderThickness="0" 
+                                                            CornerRadius="3"
+                                                            Padding="3"
+                                                            Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).CloseTabCommand}"
+                                                            CommandParameter="{Binding}"
+                                                            ToolTip.Tip="Close (Ctrl+W)">
+                                                        <Path Data="{StaticResource IconClose}" Width="8" Height="8" Fill="#858585" Stretch="Uniform" />
+                                                    </Button>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Border>
+
+                        <!-- Hardware-Accelerated Virtualized Editor Surface directly beneath tabs -->
+                        <views:EditorCanvas Grid.Row="1"
+                                            DocId="{Binding SelectedTab.DocId, FallbackValue=0}"
+                                            Workspace="{Binding Workspace}"
+                                            HorizontalAlignment="Stretch"
+                                            VerticalAlignment="Stretch" />
+                    </Grid>
+
+                    <!-- Bottom Dockable Panel Region (Splitter + Responsive Resizable Panel) -->
+                    <Grid Grid.Row="1" RowDefinitions="4,Auto" IsVisible="{Binding BottomPanel.IsOpen}">
+                        
+                        <!-- Resizer Splitter -->
+                        <GridSplitter Grid.Row="0" Height="4" Background="{StaticResource PanelBorderBrush}" ResizeDirection="Rows" />
+
+                        <!-- Bottom Dockable Panel Border with Two-Way Height Binding -->
+                        <Border Grid.Row="1" 
+                                Height="{Binding BottomPanel.PanelHeight, Mode=TwoWay}"
+                                MinHeight="120"
+                                MaxHeight="600"
+                                Background="{StaticResource PanelBackgroundBrush}" 
+                                BorderBrush="{StaticResource PanelBorderBrush}" 
+                                BorderThickness="0,1,0,0">
+                            <Grid RowDefinitions="35,*">
+                                <!-- Panel Header (35px) -->
+                                <Border Grid.Row="0" Height="35" Background="{StaticResource TitleBarBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="0,0,0,1">
+                                    <Grid ColumnDefinitions="Auto,*,Auto">
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="16" Margin="14,0,0,0" VerticalAlignment="Center">
+                                            <!-- Terminal Tab -->
+                                            <Button Background="Transparent" BorderThickness="0" Padding="0" Click="OnTerminalTabClick">
+                                                <Grid Height="35">
+                                                    <Border VerticalAlignment="Bottom" Height="2" Background="{StaticResource PanelActiveBorderBrush}" 
+                                                            IsVisible="{Binding BottomPanel.SelectedTabIndex, Converter={x:Static views:TabWeightConverter.Instance}, ConverterParameter=0}" />
+                                                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                                        <Path Data="{StaticResource IconTerminal}" Width="13" Height="13" 
+                                                              Fill="{Binding BottomPanel.SelectedTabIndex, Converter={x:Static views:TabForegroundConverter.Instance}, ConverterParameter=0}" 
+                                                              Stretch="Uniform" VerticalAlignment="Center" />
+                                                        <TextBlock Text="TERMINAL" FontSize="11" FontWeight="SemiBold"
+                                                                   Foreground="{Binding BottomPanel.SelectedTabIndex, Converter={x:Static views:TabForegroundConverter.Instance}, ConverterParameter=0}" />
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Button>
+
+                                            <!-- Output Tab -->
+                                            <Button Background="Transparent" BorderThickness="0" Padding="0" Click="OnOutputTabClick">
+                                                <Grid Height="35">
+                                                    <Border VerticalAlignment="Bottom" Height="2" Background="{StaticResource PanelActiveBorderBrush}" 
+                                                            IsVisible="{Binding BottomPanel.SelectedTabIndex, Converter={x:Static views:TabWeightConverter.Instance}, ConverterParameter=1}" />
+                                                    <TextBlock Text="OUTPUT" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"
+                                                               Foreground="{Binding BottomPanel.SelectedTabIndex, Converter={x:Static views:TabForegroundConverter.Instance}, ConverterParameter=1}" />
+                                                </Grid>
+                                            </Button>
+
+                                            <!-- Problems Tab -->
+                                            <Button Background="Transparent" BorderThickness="0" Padding="0" Click="OnProblemsTabClick">
+                                                <Grid Height="35">
+                                                    <Border VerticalAlignment="Bottom" Height="2" Background="{StaticResource PanelActiveBorderBrush}" 
+                                                            IsVisible="{Binding BottomPanel.SelectedTabIndex, Converter={x:Static views:TabWeightConverter.Instance}, ConverterParameter=2}" />
+                                                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                                        <Path Data="{StaticResource IconError}" Width="13" Height="13" 
+                                                              Fill="{Binding BottomPanel.SelectedTabIndex, Converter={x:Static views:TabForegroundConverter.Instance}, ConverterParameter=2}" 
+                                                              Stretch="Uniform" VerticalAlignment="Center" />
+                                                        <TextBlock Text="PROBLEMS" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"
+                                                                   Foreground="{Binding BottomPanel.SelectedTabIndex, Converter={x:Static views:TabForegroundConverter.Instance}, ConverterParameter=2}" />
+                                                        <TextBlock Text="{Binding BottomPanel.ErrorCount, StringFormat='({0})'}" 
+                                                                   FontSize="11" Foreground="#888888" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Button>
+                                        </StackPanel>
+
+                                        <!-- Panel Actions Toolbar -->
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" Margin="0,0,10,0" VerticalAlignment="Center">
+                                            <Button Background="Transparent" Padding="5" Command="{Binding BottomPanel.OpenExternalAlacrittyCommand}" ToolTip.Tip="Open in External Terminal">
+                                                <Path Data="{StaticResource IconTerminal}" Width="12" Height="12" Fill="#858585" Stretch="Uniform" />
+                                            </Button>
+                                            <Button Background="Transparent" Padding="5" Command="{Binding BottomPanel.CloseCommand}" ToolTip.Tip="Close Panel (Ctrl+J)">
+                                                <Path Data="{StaticResource IconClose}" Width="10" Height="10" Fill="#858585" Stretch="Uniform" />
+                                            </Button>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Panel Content -->
+                                <Carousel Grid.Row="1" SelectedIndex="{Binding BottomPanel.SelectedTabIndex}">
+                                    <!-- 1. Direct-Input Hardware-Accelerated Interactive Terminal Canvas -->
+                                    <views:TerminalCanvas x:Name="TerminalCanvasControl"
+                                                          Terminal="{Binding BottomPanel.TerminalSession}"
+                                                          HorizontalAlignment="Stretch"
+                                                          VerticalAlignment="Stretch" />
+
+                                    <!-- 2. Build Output View -->
+                                    <ScrollViewer Margin="8">
+                                        <TextBlock Text="{Binding BottomPanel.BuildOutput}" 
+                                                   FontFamily="Cascadia Code, Consolas, Courier New, monospace" 
+                                                   FontSize="12" 
+                                                   Foreground="#9CDCFE" />
+                                    </ScrollViewer>
+
+                                    <!-- 3. Problems View -->
+                                    <ListBox ItemsSource="{Binding BottomPanel.Problems}" Background="Transparent" Margin="4">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type vm:ProblemItem}">
+                                                <Grid ColumnDefinitions="Auto,*,Auto" Margin="4,2">
+                                                    <Path Grid.Column="0" Data="{StaticResource IconError}" Width="12" Height="12" Fill="{Binding Color}" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding Message}" FontSize="13" Foreground="#D4D4D4" VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="2" Text="{Binding File, StringFormat='{}{0}'}" FontSize="11" Foreground="#888888" VerticalAlignment="Center" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </Carousel>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Grid>
+            </Grid>
+
+            <!-- ========================================================================= -->
+            <!-- 3. STATUS BAR (22px)                                                      -->
+            <!-- ========================================================================= -->
+            <Border Grid.Row="2" Background="{StaticResource StatusBarBackgroundBrush}" Height="22">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <!-- Left: Remote badge + Branch + Errors/Warnings -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <!-- Remote Connection Button -->
+                        <Border Background="{StaticResource StatusBarRemoteBackgroundBrush}" Padding="8,0" Height="22">
+                            <Path Data="{StaticResource IconRemote}" Width="13" Height="13" Fill="White" Stretch="Uniform" VerticalAlignment="Center" />
+                        </Border>
+
+                        <StackPanel Orientation="Horizontal" Spacing="12" Margin="10,0" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                                <Path Data="{StaticResource IconBranch}" Width="12" Height="12" Fill="White" Stretch="Uniform" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding GitBranch}" FontSize="11" FontWeight="Bold" Foreground="White" VerticalAlignment="Center" />
+                            </StackPanel>
+                            
+                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal" Spacing="3" VerticalAlignment="Center">
+                                    <Path Data="{StaticResource IconError}" Width="11" Height="11" Fill="White" Stretch="Uniform" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding BottomPanel.ErrorCount}" FontSize="11" Foreground="White" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="3" VerticalAlignment="Center">
+                                    <Path Data="{StaticResource IconWarning}" Width="11" Height="11" Fill="White" Stretch="Uniform" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding BottomPanel.WarningCount}" FontSize="11" Foreground="White" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Center Status Message -->
+                    <TextBlock Grid.Column="1" Text="{Binding StatusMessage}" FontSize="11" Foreground="White" Margin="20,0" VerticalAlignment="Center" />
+
+                    <!-- Right: Editor Info -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="14" Margin="0,0,10,0" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding CursorLine, StringFormat='{}Ln {0}'}" FontSize="11" Foreground="White" />
+                            <TextBlock Text="{Binding CursorCol, StringFormat=', Col {0}'}" FontSize="11" Foreground="White" />
+                            <TextBlock Text="{Binding SelectionStatus}" FontSize="11" Foreground="White" />
+                        </StackPanel>
+                        <TextBlock Text="Spaces: 4" FontSize="11" Foreground="White" />
+                        <TextBlock Text="UTF-8" FontSize="11" Foreground="White" />
+                        <TextBlock Text="CRLF" FontSize="11" Foreground="White" />
+                        <TextBlock Text="{Binding SelectedTab.Language, FallbackValue='Plain Text'}" FontSize="11" FontWeight="SemiBold" Foreground="White" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- 4. Floating Command Palette / Quick Open Overlay Modal -->
+        <views:CommandPaletteOverlay DataContext="{Binding CommandPalette}" />
+    </Grid>
+</Window>

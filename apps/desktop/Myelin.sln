@@ -1,0 +1,38 @@
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Myelin.Core", "src\Myelin.Core\Myelin.Core.csproj", "{A1B2C3D4-E5F6-7890-1234-567890ABCDEF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Myelin.UI", "src\Myelin.UI\Myelin.UI.csproj", "{B2C3D4E5-F6A7-8901-2345-67890ABCDEF1}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{EA986634-E9A4-4F73-AE1A-867A562C8E19}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Myelin.Core.Tests", "tests\Myelin.Core.Tests\Myelin.Core.Tests.csproj", "{5C4FA579-BFC0-41DE-A866-447D510768F5}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A1B2C3D4-E5F6-7890-1234-567890ABCDEF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1B2C3D4-E5F6-7890-1234-567890ABCDEF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A1B2C3D4-E5F6-7890-1234-567890ABCDEF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A1B2C3D4-E5F6-7890-1234-567890ABCDEF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B2C3D4E5-F6A7-8901-2345-67890ABCDEF1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B2C3D4E5-F6A7-8901-2345-67890ABCDEF1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B2C3D4E5-F6A7-8901-2345-67890ABCDEF1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B2C3D4E5-F6A7-8901-2345-67890ABCDEF1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5C4FA579-BFC0-41DE-A866-447D510768F5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5C4FA579-BFC0-41DE-A866-447D510768F5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5C4FA579-BFC0-41DE-A866-447D510768F5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5C4FA579-BFC0-41DE-A866-447D510768F5}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{5C4FA579-BFC0-41DE-A866-447D510768F5} = {EA986634-E9A4-4F73-AE1A-867A562C8E19}
+	EndGlobalSection
+EndGlobal
