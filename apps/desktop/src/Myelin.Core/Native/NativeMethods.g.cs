@@ -85,6 +85,9 @@ namespace Myelin.Core.Native
         [DllImport(__DllName, EntryPoint = "myelin_terminal_create", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         internal static extern TerminalHandle* myelin_terminal_create(ushort cols, ushort rows, byte* working_dir);
 
+        [DllImport(__DllName, EntryPoint = "myelin_terminal_create_profile", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        internal static extern TerminalHandle* myelin_terminal_create_profile(ushort cols, ushort rows, byte* working_dir, byte* shell_path_utf8, byte* shell_args_utf8);
+
         [DllImport(__DllName, EntryPoint = "myelin_terminal_destroy", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         internal static extern void myelin_terminal_destroy(TerminalHandle* handle);
 

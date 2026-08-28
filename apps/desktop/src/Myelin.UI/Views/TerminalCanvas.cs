@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Avalonia;
@@ -42,22 +43,155 @@ namespace Myelin.UI.Views
 
         private static readonly FontFamily TerminalFontFamily = new("Consolas, Cascadia Code, Courier New, monospace");
         private readonly Typeface _font = new(TerminalFontFamily);
+        private readonly Typeface _boldFont = new(TerminalFontFamily, FontStyle.Normal, FontWeight.Bold);
         private const double FontSize = 13.0;
-        private const double LineHeight = 20.0;
+        private double _lineHeight = 20.0;
         private double _charWidth = 7.8;
         private ushort _terminalCols = 120;
+        private ushort _terminalRows = 30;
 
-        // Terminal Grid State
-        private readonly List<List<TerminalCell>> _lines = new() { new List<TerminalCell>() };
-        private int _cursorRow = 0;
-        private int _cursorCol = 0;
-        private int _savedCursorRow = 0;
-        private int _savedCursorCol = 0;
+        public class TerminalSessionState
+        {
+            public List<List<TerminalCell>> MainLines { get; set; } = new() { new List<TerminalCell>() };
+            public int MainCursorRow { get; set; } = 0;
+            public int MainCursorCol { get; set; } = 0;
+            public int MainSavedCursorRow { get; set; } = 0;
+            public int MainSavedCursorCol { get; set; } = 0;
+
+            public List<List<TerminalCell>> AltLines { get; set; } = new();
+            public int AltCursorRow { get; set; } = 0;
+            public int AltCursorCol { get; set; } = 0;
+            public int AltSavedCursorRow { get; set; } = 0;
+            public int AltSavedCursorCol { get; set; } = 0;
+            public bool IsAltBufferActive { get; set; } = false;
+
+            public int ScrollOffset { get; set; } = 0;
+            public bool UserScrolledUp { get; set; } = false;
+            public string PendingAnsiBuffer { get; set; } = string.Empty;
+
+            public Color CurrentFg { get; set; } = Color.Parse("#CCCCCC");
+            public Color? CurrentBg { get; set; } = null;
+            public bool CurrentBold { get; set; } = false;
+        }
+
+        private readonly Dictionary<NativeTerminal, TerminalSessionState> _sessionStates = new();
+        private TerminalSessionState _currentState = new();
+
+        // Terminal Buffers: Main & Alternate (for full-screen apps like vim, nano, less)
+        private List<List<TerminalCell>> _mainLines => _currentState.MainLines;
+        private List<List<TerminalCell>> _altLines => _currentState.AltLines;
+
+        private int _mainCursorRow
+        {
+            get => _currentState.MainCursorRow;
+            set => _currentState.MainCursorRow = value;
+        }
+        private int _mainCursorCol
+        {
+            get => _currentState.MainCursorCol;
+            set => _currentState.MainCursorCol = value;
+        }
+        private int _mainSavedCursorRow
+        {
+            get => _currentState.MainSavedCursorRow;
+            set => _currentState.MainSavedCursorRow = value;
+        }
+        private int _mainSavedCursorCol
+        {
+            get => _currentState.MainSavedCursorCol;
+            set => _currentState.MainSavedCursorCol = value;
+        }
+
+        private int _altCursorRow
+        {
+            get => _currentState.AltCursorRow;
+            set => _currentState.AltCursorRow = value;
+        }
+        private int _altCursorCol
+        {
+            get => _currentState.AltCursorCol;
+            set => _currentState.AltCursorCol = value;
+        }
+        private int _altSavedCursorRow
+        {
+            get => _currentState.AltSavedCursorRow;
+            set => _currentState.AltSavedCursorRow = value;
+        }
+        private int _altSavedCursorCol
+        {
+            get => _currentState.AltSavedCursorCol;
+            set => _currentState.AltSavedCursorCol = value;
+        }
+        private bool _isAltBufferActive
+        {
+            get => _currentState.IsAltBufferActive;
+            set => _currentState.IsAltBufferActive = value;
+        }
+
+        // Active Buffer Accessors
+        private List<List<TerminalCell>> Lines => _isAltBufferActive ? _altLines : _mainLines;
+
+        public int CursorRow
+        {
+            get => _isAltBufferActive ? _altCursorRow : _mainCursorRow;
+            set
+            {
+                if (_isAltBufferActive) _altCursorRow = value;
+                else _mainCursorRow = value;
+            }
+        }
+
+        public int CursorCol
+        {
+            get => _isAltBufferActive ? _altCursorCol : _mainCursorCol;
+            set
+            {
+                if (_isAltBufferActive) _altCursorCol = value;
+                else _mainCursorCol = value;
+            }
+        }
+
+        private int SavedCursorRow
+        {
+            get => _isAltBufferActive ? _altSavedCursorRow : _mainSavedCursorRow;
+            set
+            {
+                if (_isAltBufferActive) _altSavedCursorRow = value;
+                else _mainSavedCursorRow = value;
+            }
+        }
+
+        private int SavedCursorCol
+        {
+            get => _isAltBufferActive ? _altSavedCursorCol : _mainSavedCursorCol;
+            set
+            {
+                if (_isAltBufferActive) _altSavedCursorCol = value;
+                else _mainSavedCursorCol = value;
+            }
+        }
+
+        /// <summary>
+        /// The absolute line index where the active visible screen grid starts in the buffer.
+        /// </summary>
+        public int ScreenTopRow => Math.Max(0, Lines.Count - _terminalRows);
+
+        public ushort TerminalCols => _terminalCols;
+        public ushort TerminalRows => _terminalRows;
+
         private bool _cursorVisible = true;
-        private bool _userScrolledUp = false;
-        private int _scrollOffset = 0;
+        private bool _userScrolledUp
+        {
+            get => _currentState.UserScrolledUp;
+            set => _currentState.UserScrolledUp = value;
+        }
+        private int _scrollOffset
+        {
+            get => _currentState.ScrollOffset;
+            set => _currentState.ScrollOffset = value;
+        }
 
-        // Terminal Selection State
+        // Selection State
         private bool _hasSelection = false;
         private bool _isSelecting = false;
         private int _selAnchorRow = 0;
@@ -66,13 +200,34 @@ namespace Myelin.UI.Views
         private int _selHeadCol = 0;
 
         // Current Active ANSI Style
-        private Color _currentFg = Color.Parse("#CCCCCC");
-        private Color? _currentBg = null;
-        private bool _currentBold = false;
+        private Color _currentFg
+        {
+            get => _currentState.CurrentFg;
+            set => _currentState.CurrentFg = value;
+        }
+        private Color? _currentBg
+        {
+            get => _currentState.CurrentBg;
+            set => _currentState.CurrentBg = value;
+        }
+        private bool _currentBold
+        {
+            get => _currentState.CurrentBold;
+            set => _currentState.CurrentBold = value;
+        }
+
+        private string _pendingAnsiBuffer
+        {
+            get => _currentState.PendingAnsiBuffer;
+            set => _currentState.PendingAnsiBuffer = value;
+        }
 
         // Timers
         private DispatcherTimer? _blinkTimer;
         private DispatcherTimer? _pollTimer;
+        private DispatcherTimer? _resizeDebounceTimer;
+        private ushort _targetResizeCols;
+        private ushort _targetResizeRows;
 
         // Brush Cache
         private readonly Dictionary<Color, IBrush> _brushCache = new();
@@ -110,15 +265,70 @@ namespace Myelin.UI.Views
 
         public TerminalCanvas()
         {
-            Cursor = new Cursor(StandardCursorType.Ibeam);
+            try
+            {
+                Cursor = new Cursor(StandardCursorType.Ibeam);
+            }
+            catch
+            {
+                // Headless / unit test runner without Avalonia platform initialized
+            }
+
             KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.None);
+            RecalculateFontMetrics();
+            EnsureMinLines();
+        }
+
+        protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+        {
+            base.OnPropertyChanged(change);
+
+            if (change.Property == TerminalProperty)
+            {
+                var newTerm = change.GetNewValue<NativeTerminal?>();
+
+                // Clean up disposed terminal session states
+                var disposed = _sessionStates.Keys.Where(k => k.IsDisposed).ToList();
+                foreach (var d in disposed)
+                {
+                    _sessionStates.Remove(d);
+                }
+
+                if (newTerm != null)
+                {
+                    if (!_sessionStates.TryGetValue(newTerm, out var state))
+                    {
+                        state = new TerminalSessionState();
+                        _sessionStates[newTerm] = state;
+                    }
+                    _currentState = state;
+
+                    EnsureMinLines();
+
+                    if (newTerm.IsAlive)
+                    {
+                        try
+                        {
+                            newTerm.Resize(_terminalCols, _terminalRows);
+                        }
+                        catch { }
+                    }
+                }
+                else
+                {
+                    _currentState = new TerminalSessionState();
+                    EnsureMinLines();
+                }
+
+                InvalidateVisual();
+            }
         }
 
         protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
         {
             base.OnAttachedToVisualTree(e);
 
-            _charWidth = MeasureCharWidth();
+            RecalculateFontMetrics();
 
             _blinkTimer = new DispatcherTimer
             {
@@ -133,7 +343,7 @@ namespace Myelin.UI.Views
 
             _pollTimer = new DispatcherTimer
             {
-                Interval = TimeSpan.FromMilliseconds(30)
+                Interval = TimeSpan.FromMilliseconds(25)
             };
             _pollTimer.Tick += (s, ev) => PollOutput();
             _pollTimer.Start();
@@ -147,43 +357,110 @@ namespace Myelin.UI.Views
             base.OnDetachedFromVisualTree(e);
             _blinkTimer?.Stop();
             _pollTimer?.Stop();
+            _resizeDebounceTimer?.Stop();
         }
 
         protected override void OnSizeChanged(SizeChangedEventArgs e)
         {
             base.OnSizeChanged(e);
-            _charWidth = MeasureCharWidth();
+            RecalculateFontMetrics();
 
-            if (e.NewSize.Width > 0 && e.NewSize.Height > 0 && _charWidth > 0 && LineHeight > 0)
+            double paddingX = 10;
+            double paddingY = 6;
+
+            if (e.NewSize.Width > 0 && e.NewSize.Height > 0 && _charWidth > 0 && _lineHeight > 0)
             {
-                ushort cols = (ushort)Math.Max(20, Math.Min(300, (int)((e.NewSize.Width - 20) / _charWidth)));
-                ushort rows = (ushort)Math.Max(5, Math.Min(100, (int)((e.NewSize.Height - 12) / LineHeight)));
-                _terminalCols = cols;
+                ushort cols = (ushort)Math.Max(20, Math.Min(300, (int)((e.NewSize.Width - paddingX * 2) / _charWidth)));
+                ushort rows = (ushort)Math.Max(5, Math.Min(100, (int)((e.NewSize.Height - paddingY * 2) / _lineHeight)));
 
-                if (Terminal != null && Terminal.IsAlive)
+                if (cols == _terminalCols && rows == _terminalRows)
                 {
-                    try
-                    {
-                        Terminal.Resize(cols, rows);
-                    }
-                    catch { }
+                    InvalidateVisual();
+                    return;
                 }
+
+                _targetResizeCols = cols;
+                _targetResizeRows = rows;
+
+                // Debounce ConPTY resize so rapid mouse drag doesn't flood and corrupt the PTY stream
+                _resizeDebounceTimer?.Stop();
+                _resizeDebounceTimer = new DispatcherTimer
+                {
+                    Interval = TimeSpan.FromMilliseconds(40)
+                };
+                _resizeDebounceTimer.Tick += (s, ev) =>
+                {
+                    _resizeDebounceTimer.Stop();
+                    ApplyResize(_targetResizeCols, _targetResizeRows);
+                };
+                _resizeDebounceTimer.Start();
             }
 
             InvalidateVisual();
         }
 
-        private double MeasureCharWidth()
+        private void ApplyResize(ushort cols, ushort rows)
         {
-            var testText = new FormattedText(
-                "01234567890123456789",
-                CultureInfo.InvariantCulture,
-                FlowDirection.LeftToRight,
-                _font,
-                FontSize,
-                Brushes.White
-            );
-            return testText.Width > 0 ? (testText.Width / 20.0) : 7.8;
+            if (cols == 0 || rows == 0) return;
+            if (cols == _terminalCols && rows == _terminalRows) return;
+
+            _terminalCols = cols;
+            _terminalRows = rows;
+
+            EnsureMinLines();
+
+            if (Terminal != null && Terminal.IsAlive)
+            {
+                try
+                {
+                    Terminal.Resize(cols, rows);
+                }
+                catch { }
+            }
+
+            InvalidateVisual();
+        }
+
+        private void RecalculateFontMetrics()
+        {
+            try
+            {
+                var testText = new FormattedText(
+                    new string('X', 100),
+                    CultureInfo.InvariantCulture,
+                    FlowDirection.LeftToRight,
+                    _font,
+                    FontSize,
+                    Brushes.White
+                );
+                _charWidth = testText.Width > 0 ? (testText.Width / 100.0) : 7.8;
+                _lineHeight = testText.Height > 0 ? Math.Ceiling(testText.Height + 4.0) : 20.0;
+            }
+            catch
+            {
+                _charWidth = 7.8;
+                _lineHeight = 20.0;
+            }
+        }
+
+        private void EnsureMinLines()
+        {
+            while (Lines.Count <= CursorRow)
+            {
+                Lines.Add(new List<TerminalCell>());
+            }
+        }
+
+        private int ToAbsoluteRow(int screenRow0Based)
+        {
+            EnsureMinLines();
+            int top = ScreenTopRow;
+            int target = top + Math.Clamp(screenRow0Based, 0, Math.Max(0, _terminalRows - 1));
+            while (Lines.Count <= target)
+            {
+                Lines.Add(new List<TerminalCell>());
+            }
+            return target;
         }
 
         private IBrush GetCachedBrush(Color color)
@@ -195,8 +472,6 @@ namespace Myelin.UI.Views
             }
             return brush;
         }
-
-        private string _pendingAnsiBuffer = string.Empty;
 
         private void PollOutput()
         {
@@ -216,7 +491,7 @@ namespace Myelin.UI.Views
             }
         }
 
-        private void ProcessAnsiStream(string text)
+        public void ProcessAnsiStream(string text)
         {
             int i = 0;
             int n = text.Length;
@@ -246,15 +521,23 @@ namespace Myelin.UI.Views
                         // Advance until final byte (0x40 - 0x7E)
                         while (seqEnd < n && (text[seqEnd] < 0x40 || text[seqEnd] > 0x7E))
                         {
+                            // If an unexpected nested escape occurs, break to avoid eating stream
+                            if (text[seqEnd] == '\x1b') break;
                             seqEnd++;
                         }
 
-                        if (seqEnd < n)
+                        if (seqEnd < n && text[seqEnd] >= 0x40 && text[seqEnd] <= 0x7E)
                         {
                             char finalChar = text[seqEnd];
                             string paramStr = text[seqStart..seqEnd];
                             ApplyCsiSequence(paramStr, finalChar);
                             i = seqEnd + 1;
+                            continue;
+                        }
+                        else if (seqEnd < n && text[seqEnd] == '\x1b')
+                        {
+                            // Malformed sequence followed by new ESC: skip malformed prefix
+                            i = seqEnd;
                             continue;
                         }
                         else
@@ -290,29 +573,59 @@ namespace Myelin.UI.Views
                         // 2-char escape sequences
                         if (next == '7') // DECSC (Save cursor)
                         {
-                            _savedCursorRow = _cursorRow;
-                            _savedCursorCol = _cursorCol;
+                            SavedCursorRow = CursorRow - ScreenTopRow;
+                            SavedCursorCol = CursorCol;
                             i += 2;
                             continue;
                         }
                         else if (next == '8') // DECRC (Restore cursor)
                         {
-                            _cursorRow = Math.Max(0, _savedCursorRow);
-                            while (_cursorRow >= _lines.Count)
-                            {
-                                _lines.Add(new List<TerminalCell>());
-                            }
-                            _cursorCol = Math.Max(0, _savedCursorCol);
+                            CursorRow = ToAbsoluteRow(SavedCursorRow);
+                            CursorCol = Math.Clamp(SavedCursorCol, 0, Math.Max(0, _terminalCols - 1));
                             i += 2;
                             continue;
                         }
                         else if (next == 'M') // RI (Reverse Index / cursor up)
                         {
-                            _cursorRow = Math.Max(0, _cursorRow - 1);
+                            if (CursorRow > ScreenTopRow)
+                            {
+                                CursorRow--;
+                            }
+                            else
+                            {
+                                Lines.Insert(ScreenTopRow, new List<TerminalCell>());
+                            }
+                            i += 2;
+                            continue;
+                        }
+                        else if (next == 'D') // IND (Index / cursor down)
+                        {
+                            AdvanceLine();
+                            i += 2;
+                            continue;
+                        }
+                        else if (next == 'E') // NEL (Next Line)
+                        {
+                            AdvanceLine();
+                            CursorCol = 0;
+                            i += 2;
+                            continue;
+                        }
+                        else if (next == 'c') // RIS (Reset to Initial State)
+                        {
+                            Lines.Clear();
+                            EnsureMinLines();
+                            CursorRow = 0;
+                            CursorCol = 0;
+                            _isAltBufferActive = false;
+                            _currentFg = Color.Parse("#CCCCCC");
+                            _currentBg = null;
+                            _currentBold = false;
                             i += 2;
                             continue;
                         }
 
+                        // Ignore other 2-char escapes (e.g. keypad modes ESC =, ESC >)
                         i += 2;
                         continue;
                     }
@@ -321,28 +634,24 @@ namespace Myelin.UI.Views
                 // Control characters
                 if (c == '\r')
                 {
-                    _cursorCol = 0;
+                    CursorCol = 0;
                     i++;
                 }
                 else if (c == '\n')
                 {
-                    _cursorRow++;
-                    while (_cursorRow >= _lines.Count)
-                    {
-                        _lines.Add(new List<TerminalCell>());
-                    }
-                    _cursorCol = 0;
+                    AdvanceLine();
+                    CursorCol = 0;
                     i++;
                 }
                 else if (c == '\b')
                 {
-                    if (_cursorCol > 0) _cursorCol--;
+                    if (CursorCol > 0) CursorCol--;
                     i++;
                 }
                 else if (c == '\t')
                 {
                     // Standard VT 8-column tab stop
-                    int spaces = 8 - (_cursorCol % 8);
+                    int spaces = 8 - (CursorCol % 8);
                     for (int s = 0; s < spaces; s++)
                     {
                         PutCell(' ');
@@ -360,12 +669,12 @@ namespace Myelin.UI.Views
                 }
             }
 
-            // Cap buffer at 2000 lines
-            if (_lines.Count > 2000)
+            // Cap main buffer at 5000 lines
+            if (_mainLines.Count > 5000)
             {
-                int removed = _lines.Count - 2000;
-                _lines.RemoveRange(0, removed);
-                _cursorRow = Math.Max(0, _cursorRow - removed);
+                int removed = _mainLines.Count - 5000;
+                _mainLines.RemoveRange(0, removed);
+                _mainCursorRow = Math.Max(0, _mainCursorRow - removed);
 
                 if (_hasSelection)
                 {
@@ -377,33 +686,32 @@ namespace Myelin.UI.Views
             // Auto-scroll unless user scrolled up
             if (!_userScrolledUp)
             {
-                int visibleCount = (int)Math.Max(1, Bounds.Height / LineHeight);
-                _scrollOffset = Math.Max(0, _lines.Count - visibleCount);
+                int visibleCount = (int)Math.Max(1, Bounds.Height / _lineHeight);
+                _scrollOffset = Math.Max(0, Lines.Count - visibleCount);
             }
         }
 
         private void PutCell(char c)
         {
-            if (_cursorRow < 0) _cursorRow = 0;
-            while (_cursorRow >= _lines.Count)
-            {
-                _lines.Add(new List<TerminalCell>());
-            }
+            EnsureMinLines();
+
+            if (CursorRow < ScreenTopRow) CursorRow = ScreenTopRow;
 
             // Auto-wrap if cursor column reaches or exceeds the terminal column width
-            if (_cursorCol >= _terminalCols && _terminalCols > 0)
+            if (CursorCol >= _terminalCols && _terminalCols > 0)
             {
-                _cursorRow++;
-                while (_cursorRow >= _lines.Count)
-                {
-                    _lines.Add(new List<TerminalCell>());
-                }
-                _cursorCol = 0;
+                AdvanceLine();
+                CursorCol = 0;
             }
 
-            var line = _lines[_cursorRow];
-            if (_cursorCol < 0) _cursorCol = 0;
-            while (line.Count < _cursorCol)
+            while (CursorRow >= Lines.Count)
+            {
+                Lines.Add(new List<TerminalCell>());
+            }
+
+            var line = Lines[CursorRow];
+            if (CursorCol < 0) CursorCol = 0;
+            while (line.Count < CursorCol)
             {
                 line.Add(TerminalCell.Empty);
             }
@@ -416,191 +724,348 @@ namespace Myelin.UI.Views
                 Bold = _currentBold
             };
 
-            if (_cursorCol < line.Count)
+            if (CursorCol < line.Count)
             {
-                line[_cursorCol] = cell;
+                line[CursorCol] = cell;
             }
             else
             {
                 line.Add(cell);
             }
 
-            _cursorCol++;
+            CursorCol++;
+        }
+
+        private void AdvanceLine()
+        {
+            if (CursorRow >= ScreenTopRow + _terminalRows - 1)
+            {
+                // Bottom of screen: add new line to scroll screen up
+                Lines.Add(new List<TerminalCell>());
+                CursorRow = Lines.Count - 1;
+            }
+            else
+            {
+                CursorRow++;
+                while (CursorRow >= Lines.Count)
+                {
+                    Lines.Add(new List<TerminalCell>());
+                }
+            }
         }
 
         private void ApplyCsiSequence(string paramStr, char finalChar)
         {
+            EnsureMinLines();
+
+            bool isDecPrivate = paramStr.StartsWith('?');
+            string cleanParams = isDecPrivate ? paramStr.Substring(1) : paramStr;
+
             switch (finalChar)
             {
                 case 'm': // SGR (Select Graphic Rendition)
                     ApplySgr(paramStr);
                     break;
-                case 'J': // Erase Display
-                    if (paramStr == "2" || paramStr == "3")
+
+                case 'H': // CUP (Cursor Position)
+                case 'f': // HVP (Horizontal and Vertical Position)
                     {
-                        _lines.Clear();
-                        _lines.Add(new List<TerminalCell>());
-                        _cursorRow = 0;
-                        _cursorCol = 0;
-                        _scrollOffset = 0;
-                    }
-                    break;
-                case 'K': // Erase Line
-                    if (_cursorRow >= 0 && _cursorRow < _lines.Count)
-                    {
-                        var line = _lines[_cursorRow];
-                        if (paramStr == "0" || string.IsNullOrEmpty(paramStr))
-                        {
-                            if (_cursorCol >= 0 && _cursorCol < line.Count)
-                            {
-                                line.RemoveRange(_cursorCol, line.Count - _cursorCol);
-                            }
-                        }
-                        else if (paramStr == "1")
-                        {
-                            int clearCount = Math.Min(Math.Max(0, _cursorCol + 1), line.Count);
-                            for (int k = 0; k < clearCount; k++) line[k] = TerminalCell.Empty;
-                        }
-                        else if (paramStr == "2")
-                        {
-                            line.Clear();
-                        }
-                    }
-                    break;
-                case 'A': // Cursor Up
-                    {
-                        int amount = int.TryParse(paramStr, out int v) ? Math.Max(1, v) : 1;
-                        _cursorRow = Math.Max(0, _cursorRow - amount);
-                    }
-                    break;
-                case 'B': // Cursor Down
-                    {
-                        int amount = int.TryParse(paramStr, out int v) ? Math.Max(1, v) : 1;
-                        _cursorRow = Math.Max(0, _cursorRow + amount);
-                        while (_cursorRow >= _lines.Count)
-                        {
-                            _lines.Add(new List<TerminalCell>());
-                        }
-                    }
-                    break;
-                case 'C': // Cursor Forward
-                    {
-                        int amount = int.TryParse(paramStr, out int v) ? Math.Max(1, v) : 1;
-                        _cursorCol = Math.Max(0, _cursorCol + amount);
-                    }
-                    break;
-                case 'D': // Cursor Back
-                    {
-                        int amount = int.TryParse(paramStr, out int v) ? Math.Max(1, v) : 1;
-                        _cursorCol = Math.Max(0, _cursorCol - amount);
-                    }
-                    break;
-                case 'H': // Cursor Position
-                case 'f':
-                    {
-                        var parts = paramStr.Split(';');
+                        var parts = cleanParams.Split(';');
                         int r = parts.Length > 0 && int.TryParse(parts[0], out int pr) ? Math.Max(1, pr) - 1 : 0;
                         int c = parts.Length > 1 && int.TryParse(parts[1], out int pc) ? Math.Max(1, pc) - 1 : 0;
-                        _cursorRow = Math.Max(0, r);
-                        while (_cursorRow >= _lines.Count)
-                        {
-                            _lines.Add(new List<TerminalCell>());
-                        }
-                        _cursorCol = Math.Max(0, c);
+                        CursorRow = ToAbsoluteRow(r);
+                        CursorCol = Math.Clamp(c, 0, Math.Max(0, _terminalCols - 1));
                     }
                     break;
-                case 'G': // Cursor Horizontal Absolute (CHA)
+
+                case 'G': // CHA (Cursor Horizontal Absolute)
                 case '`': // HPA
                     {
-                        int col = int.TryParse(paramStr, out int v) ? Math.Max(1, v) - 1 : 0;
-                        _cursorCol = Math.Max(0, col);
+                        int col = int.TryParse(cleanParams, out int v) ? Math.Max(1, v) - 1 : 0;
+                        CursorCol = Math.Clamp(col, 0, Math.Max(0, _terminalCols - 1));
                     }
                     break;
-                case 'd': // Line Position Absolute (VPA)
+
+                case 'd': // VPA (Line Position Absolute)
                     {
-                        int row = int.TryParse(paramStr, out int v) ? Math.Max(1, v) - 1 : 0;
-                        _cursorRow = Math.Max(0, row);
-                        while (_cursorRow >= _lines.Count)
+                        int row = int.TryParse(cleanParams, out int v) ? Math.Max(1, v) - 1 : 0;
+                        CursorRow = ToAbsoluteRow(row);
+                    }
+                    break;
+
+                case 'A': // CUU (Cursor Up)
+                    {
+                        int amount = int.TryParse(cleanParams, out int v) ? Math.Max(1, v) : 1;
+                        CursorRow = Math.Max(ScreenTopRow, CursorRow - amount);
+                    }
+                    break;
+
+                case 'B': // CUD (Cursor Down)
+                    {
+                        int amount = int.TryParse(cleanParams, out int v) ? Math.Max(1, v) : 1;
+                        CursorRow = Math.Min(ScreenTopRow + _terminalRows - 1, CursorRow + amount);
+                        while (CursorRow >= Lines.Count) Lines.Add(new List<TerminalCell>());
+                    }
+                    break;
+
+                case 'C': // CUF (Cursor Forward)
+                    {
+                        int amount = int.TryParse(cleanParams, out int v) ? Math.Max(1, v) : 1;
+                        CursorCol = Math.Min(Math.Max(0, _terminalCols - 1), CursorCol + amount);
+                    }
+                    break;
+
+                case 'D': // CUB (Cursor Back)
+                    {
+                        int amount = int.TryParse(cleanParams, out int v) ? Math.Max(1, v) : 1;
+                        CursorCol = Math.Max(0, CursorCol - amount);
+                    }
+                    break;
+
+                case 'E': // CNL (Cursor Next Line)
+                    {
+                        int amount = int.TryParse(cleanParams, out int v) ? Math.Max(1, v) : 1;
+                        CursorRow = Math.Min(ScreenTopRow + _terminalRows - 1, CursorRow + amount);
+                        CursorCol = 0;
+                        while (CursorRow >= Lines.Count) Lines.Add(new List<TerminalCell>());
+                    }
+                    break;
+
+                case 'F': // CPL (Cursor Previous Line)
+                    {
+                        int amount = int.TryParse(cleanParams, out int v) ? Math.Max(1, v) : 1;
+                        CursorRow = Math.Max(ScreenTopRow, CursorRow - amount);
+                        CursorCol = 0;
+                    }
+                    break;
+
+                case 'J': // ED (Erase In Display)
+                    {
+                        int mode = int.TryParse(cleanParams, out int m) ? m : 0;
+                        if (mode == 0) // Erase from cursor to end of screen
                         {
-                            _lines.Add(new List<TerminalCell>());
+                            if (CursorRow >= 0 && CursorRow < Lines.Count)
+                            {
+                                var line = Lines[CursorRow];
+                                if (CursorCol < line.Count) line.RemoveRange(CursorCol, line.Count - CursorCol);
+                            }
+                            for (int r = CursorRow + 1; r < ScreenTopRow + _terminalRows && r < Lines.Count; r++)
+                            {
+                                Lines[r].Clear();
+                            }
+                        }
+                        else if (mode == 1) // Erase from start of screen to cursor
+                        {
+                            for (int r = ScreenTopRow; r < CursorRow && r < Lines.Count; r++)
+                            {
+                                Lines[r].Clear();
+                            }
+                            if (CursorRow >= 0 && CursorRow < Lines.Count)
+                            {
+                                var line = Lines[CursorRow];
+                                int count = Math.Min(CursorCol + 1, line.Count);
+                                for (int k = 0; k < count; k++) line[k] = TerminalCell.Empty;
+                            }
+                        }
+                        else if (mode == 2) // Erase entire active screen
+                        {
+                            int screenStart = ScreenTopRow;
+                            int screenEnd = Math.Min(Lines.Count, screenStart + _terminalRows);
+                            for (int r = screenStart; r < screenEnd; r++)
+                            {
+                                Lines[r].Clear();
+                            }
+                        }
+                        else if (mode == 3) // Erase scrollback history
+                        {
+                            int screenStart = ScreenTopRow;
+                            if (screenStart > 0 && screenStart <= Lines.Count)
+                            {
+                                Lines.RemoveRange(0, screenStart);
+                                CursorRow = Math.Max(0, CursorRow - screenStart);
+                                _scrollOffset = 0;
+                            }
                         }
                     }
                     break;
-                case 's': // Save Cursor Position
-                    _savedCursorRow = _cursorRow;
-                    _savedCursorCol = _cursorCol;
-                    break;
-                case 'u': // Restore Cursor Position
-                    _cursorRow = Math.Max(0, _savedCursorRow);
-                    while (_cursorRow >= _lines.Count)
+
+                case 'K': // EL (Erase In Line)
                     {
-                        _lines.Add(new List<TerminalCell>());
-                    }
-                    _cursorCol = Math.Max(0, _savedCursorCol);
-                    break;
-                case 'X': // Erase Character (ECH)
-                    if (_cursorRow >= 0 && _cursorRow < _lines.Count)
-                    {
-                        var line = _lines[_cursorRow];
-                        int count = int.TryParse(paramStr, out int cnt) ? Math.Max(1, cnt) : 1;
-                        int maxErase = Math.Min(line.Count, Math.Max(0, _cursorCol) + count);
-                        for (int k = Math.Max(0, _cursorCol); k < maxErase; k++)
+                        int mode = int.TryParse(cleanParams, out int m) ? m : 0;
+                        if (CursorRow >= 0 && CursorRow < Lines.Count)
                         {
-                            line[k] = TerminalCell.Empty;
+                            var line = Lines[CursorRow];
+                            if (mode == 0) // Erase from cursor to end of line
+                            {
+                                if (CursorCol >= 0 && CursorCol < line.Count)
+                                {
+                                    line.RemoveRange(CursorCol, line.Count - CursorCol);
+                                }
+                            }
+                            else if (mode == 1) // Erase from start to cursor
+                            {
+                                int clearCount = Math.Min(Math.Max(0, CursorCol + 1), line.Count);
+                                for (int k = 0; k < clearCount; k++) line[k] = TerminalCell.Empty;
+                            }
+                            else if (mode == 2) // Erase entire line
+                            {
+                                line.Clear();
+                            }
                         }
                     }
                     break;
-                case 'P': // Delete Character (DCH)
-                    if (_cursorRow >= 0 && _cursorRow < _lines.Count)
+
+                case 'X': // ECH (Erase Character)
                     {
-                        var line = _lines[_cursorRow];
-                        int count = int.TryParse(paramStr, out int cnt) ? Math.Max(1, cnt) : 1;
-                        if (_cursorCol >= 0 && _cursorCol < line.Count)
+                        int count = int.TryParse(cleanParams, out int cnt) ? Math.Max(1, cnt) : 1;
+                        if (CursorRow >= 0 && CursorRow < Lines.Count)
                         {
-                            int rem = Math.Min(count, line.Count - _cursorCol);
-                            line.RemoveRange(_cursorCol, rem);
+                            var line = Lines[CursorRow];
+                            int maxErase = Math.Min(line.Count, Math.Max(0, CursorCol) + count);
+                            for (int k = Math.Max(0, CursorCol); k < maxErase; k++)
+                            {
+                                line[k] = TerminalCell.Empty;
+                            }
                         }
                     }
                     break;
-                case '@': // Insert Character (ICH)
-                    if (_cursorRow >= 0 && _cursorRow < _lines.Count)
+
+                case 'P': // DCH (Delete Character)
                     {
-                        var line = _lines[_cursorRow];
-                        int count = int.TryParse(paramStr, out int cnt) ? Math.Max(1, cnt) : 1;
-                        while (line.Count < _cursorCol) line.Add(TerminalCell.Empty);
-                        if (_cursorCol >= 0 && _cursorCol <= line.Count)
+                        int count = int.TryParse(cleanParams, out int cnt) ? Math.Max(1, cnt) : 1;
+                        if (CursorRow >= 0 && CursorRow < Lines.Count)
+                        {
+                            var line = Lines[CursorRow];
+                            if (CursorCol >= 0 && CursorCol < line.Count)
+                            {
+                                int rem = Math.Min(count, line.Count - CursorCol);
+                                line.RemoveRange(CursorCol, rem);
+                            }
+                        }
+                    }
+                    break;
+
+                case '@': // ICH (Insert Character)
+                    {
+                        int count = int.TryParse(cleanParams, out int cnt) ? Math.Max(1, cnt) : 1;
+                        if (CursorRow >= 0 && CursorRow < Lines.Count)
+                        {
+                            var line = Lines[CursorRow];
+                            while (line.Count < CursorCol) line.Add(TerminalCell.Empty);
+                            if (CursorCol >= 0 && CursorCol <= line.Count)
+                            {
+                                for (int k = 0; k < count; k++)
+                                {
+                                    line.Insert(CursorCol, TerminalCell.Empty);
+                                }
+                            }
+                        }
+                    }
+                    break;
+
+                case 'M': // DL (Delete Line)
+                    {
+                        int count = int.TryParse(cleanParams, out int cnt) ? Math.Max(1, cnt) : 1;
+                        int screenBottom = ScreenTopRow + _terminalRows;
+                        if (CursorRow >= ScreenTopRow && CursorRow < screenBottom && CursorRow < Lines.Count)
+                        {
+                            int rem = Math.Min(count, screenBottom - CursorRow);
+                            rem = Math.Min(rem, Lines.Count - CursorRow);
+                            Lines.RemoveRange(CursorRow, rem);
+                            for (int k = 0; k < rem; k++)
+                            {
+                                if (screenBottom - 1 <= Lines.Count)
+                                    Lines.Insert(Math.Min(Lines.Count, screenBottom - 1), new List<TerminalCell>());
+                            }
+                        }
+                    }
+                    break;
+
+                case 'L': // IL (Insert Line)
+                    {
+                        int count = int.TryParse(cleanParams, out int cnt) ? Math.Max(1, cnt) : 1;
+                        int screenBottom = ScreenTopRow + _terminalRows;
+                        if (CursorRow >= ScreenTopRow && CursorRow < screenBottom)
                         {
                             for (int k = 0; k < count; k++)
                             {
-                                line.Insert(_cursorCol, TerminalCell.Empty);
+                                Lines.Insert(CursorRow, new List<TerminalCell>());
+                                if (Lines.Count > screenBottom)
+                                {
+                                    Lines.RemoveAt(screenBottom);
+                                }
                             }
                         }
                     }
                     break;
-                case 'M': // Delete Line (DL)
-                    if (_cursorRow >= 0 && _cursorRow < _lines.Count)
+
+                case 'S': // SU (Scroll Up)
                     {
-                        int count = int.TryParse(paramStr, out int cnt) ? Math.Max(1, cnt) : 1;
-                        int rem = Math.Min(count, _lines.Count - _cursorRow);
-                        _lines.RemoveRange(_cursorRow, rem);
-                        if (_lines.Count == 0) _lines.Add(new List<TerminalCell>());
-                    }
-                    break;
-                case 'L': // Insert Line (IL)
-                    if (_cursorRow >= 0 && _cursorRow <= _lines.Count)
-                    {
-                        int count = int.TryParse(paramStr, out int cnt) ? Math.Max(1, cnt) : 1;
+                        int count = int.TryParse(cleanParams, out int cnt) ? Math.Max(1, cnt) : 1;
                         for (int k = 0; k < count; k++)
                         {
-                            _lines.Insert(_cursorRow, new List<TerminalCell>());
+                            Lines.Add(new List<TerminalCell>());
                         }
                     }
                     break;
-                case 'h': // Set Mode
-                    if (paramStr == "?25") _cursorVisible = true;
+
+                case 'T': // SD (Scroll Down)
+                    {
+                        int count = int.TryParse(cleanParams, out int cnt) ? Math.Max(1, cnt) : 1;
+                        for (int k = 0; k < count; k++)
+                        {
+                            Lines.Insert(ScreenTopRow, new List<TerminalCell>());
+                            if (Lines.Count > ScreenTopRow + _terminalRows + 1000)
+                            {
+                                Lines.RemoveAt(Lines.Count - 1);
+                            }
+                        }
+                    }
                     break;
+
+                case 's': // Save Cursor Position
+                    SavedCursorRow = CursorRow - ScreenTopRow;
+                    SavedCursorCol = CursorCol;
+                    break;
+
+                case 'u': // Restore Cursor Position
+                    CursorRow = ToAbsoluteRow(SavedCursorRow);
+                    CursorCol = Math.Clamp(SavedCursorCol, 0, Math.Max(0, _terminalCols - 1));
+                    break;
+
+                case 'h': // Set Mode
+                    if (isDecPrivate)
+                    {
+                        if (cleanParams == "25") _cursorVisible = true;
+                        else if (cleanParams == "1049" || cleanParams == "47")
+                        {
+                            // Switch to alternate screen buffer
+                            if (!_isAltBufferActive)
+                            {
+                                _isAltBufferActive = true;
+                                _altLines.Clear();
+                                for (int r = 0; r < _terminalRows; r++) _altLines.Add(new List<TerminalCell>());
+                                _altCursorRow = 0;
+                                _altCursorCol = 0;
+                            }
+                        }
+                    }
+                    break;
+
                 case 'l': // Reset Mode
-                    if (paramStr == "?25") _cursorVisible = false;
+                    if (isDecPrivate)
+                    {
+                        if (cleanParams == "25") _cursorVisible = false;
+                        else if (cleanParams == "1049" || cleanParams == "47")
+                        {
+                            // Switch back to main screen buffer
+                            if (_isAltBufferActive)
+                            {
+                                _isAltBufferActive = false;
+                                _altLines.Clear();
+                            }
+                        }
+                    }
                     break;
             }
         }
@@ -708,20 +1173,20 @@ namespace Myelin.UI.Views
 
         public string GetSelectedText()
         {
-            if (!_hasSelection || _lines.Count == 0) return string.Empty;
+            if (!_hasSelection || Lines.Count == 0) return string.Empty;
 
             int startRow = _selAnchorRow < _selHeadRow ? _selAnchorRow : _selHeadRow;
             int endRow = _selAnchorRow > _selHeadRow ? _selAnchorRow : _selHeadRow;
             int startCol = _selAnchorRow == _selHeadRow ? Math.Min(_selAnchorCol, _selHeadCol) : (_selAnchorRow < _selHeadRow ? _selAnchorCol : _selHeadCol);
             int endCol = _selAnchorRow == _selHeadRow ? Math.Max(_selAnchorCol, _selHeadCol) : (_selAnchorRow > _selHeadRow ? _selAnchorCol : _selHeadCol);
 
-            startRow = Math.Clamp(startRow, 0, _lines.Count - 1);
-            endRow = Math.Clamp(endRow, 0, _lines.Count - 1);
+            startRow = Math.Clamp(startRow, 0, Lines.Count - 1);
+            endRow = Math.Clamp(endRow, 0, Lines.Count - 1);
 
             var sb = new StringBuilder();
             for (int r = startRow; r <= endRow; r++)
             {
-                var line = _lines[r];
+                var line = Lines[r];
                 int sC = (r == startRow) ? Math.Min(startCol, line.Count) : 0;
                 int eC = (r == endRow) ? Math.Min(endCol, line.Count) : line.Count;
 
@@ -739,8 +1204,8 @@ namespace Myelin.UI.Views
 
         private (int start, int end) GetWordRangeAt(int row, int col)
         {
-            if (row < 0 || row >= _lines.Count) return (0, 0);
-            var line = _lines[row];
+            if (row < 0 || row >= Lines.Count) return (0, 0);
+            var line = Lines[row];
             if (line.Count == 0) return (0, 0);
             int c = Math.Clamp(col, 0, line.Count - 1);
 
@@ -799,7 +1264,7 @@ namespace Myelin.UI.Views
             double paddingX = 10;
             double paddingY = 6;
 
-            int clickedRow = Math.Clamp((int)((point.Y - paddingY) / LineHeight) + _scrollOffset, 0, Math.Max(0, _lines.Count - 1));
+            int clickedRow = Math.Clamp((int)((point.Y - paddingY) / _lineHeight) + _scrollOffset, 0, Math.Max(0, Lines.Count - 1));
             int clickedCol = Math.Max(0, (int)Math.Round((point.X - paddingX) / _charWidth));
 
             // Right Click in Terminal: Copy selection if present, else Paste
@@ -836,7 +1301,7 @@ namespace Myelin.UI.Views
                 _selAnchorRow = clickedRow;
                 _selAnchorCol = 0;
                 _selHeadRow = clickedRow;
-                _selHeadCol = _lines[clickedRow].Count;
+                _selHeadCol = Lines[clickedRow].Count;
                 _hasSelection = true;
                 _isSelecting = false;
             }
@@ -857,13 +1322,13 @@ namespace Myelin.UI.Views
         protected override void OnPointerMoved(PointerEventArgs e)
         {
             base.OnPointerMoved(e);
-            if (!_isSelecting || _lines.Count == 0) return;
+            if (!_isSelecting || Lines.Count == 0) return;
 
             var point = e.GetPosition(this);
             double paddingX = 10;
             double paddingY = 6;
 
-            int targetRow = Math.Clamp((int)((point.Y - paddingY) / LineHeight) + _scrollOffset, 0, Math.Max(0, _lines.Count - 1));
+            int targetRow = Math.Clamp((int)((point.Y - paddingY) / _lineHeight) + _scrollOffset, 0, Math.Max(0, Lines.Count - 1));
             int targetCol = Math.Max(0, (int)Math.Round((point.X - paddingX) / _charWidth));
 
             // Auto-scroll on edge drag
@@ -874,8 +1339,8 @@ namespace Myelin.UI.Views
             }
             else if (point.Y > Bounds.Height)
             {
-                int visibleLines = (int)Math.Max(1, Bounds.Height / LineHeight);
-                int maxScroll = Math.Max(0, _lines.Count - visibleLines);
+                int visibleLines = (int)Math.Max(1, Bounds.Height / _lineHeight);
+                int maxScroll = Math.Max(0, Lines.Count - visibleLines);
                 if (_scrollOffset < maxScroll)
                 {
                     _scrollOffset++;
@@ -903,8 +1368,8 @@ namespace Myelin.UI.Views
         protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
         {
             base.OnPointerWheelChanged(e);
-            int visibleCount = (int)Math.Max(1, Bounds.Height / LineHeight);
-            int maxScroll = Math.Max(0, _lines.Count - visibleCount);
+            int visibleCount = (int)Math.Max(1, Bounds.Height / _lineHeight);
+            int maxScroll = Math.Max(0, Lines.Count - visibleCount);
 
             if (e.Delta.Y > 0)
             {
@@ -925,8 +1390,7 @@ namespace Myelin.UI.Views
             base.OnTextInput(e);
             if (Terminal == null || !Terminal.IsAlive || string.IsNullOrEmpty(e.Text)) return;
 
-            // Only forward printable characters (>= space, not control, not DEL 0x7F)
-            // Control keys (Backspace, Enter, Tab, Arrows, Ctrl+...) are handled in OnKeyDown
+            // Forward printable characters (>= space, not control, not DEL 0x7F)
             if (e.Text.Length > 0 && e.Text[0] >= ' ' && e.Text[0] != 0x7F)
             {
                 Terminal.Write(e.Text);
@@ -977,6 +1441,7 @@ namespace Myelin.UI.Views
                     {
                         Terminal.Write("\x08"); // BS
                     }
+                    _userScrolledUp = false;
                     break;
                 case Key.Delete:
                     if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
@@ -987,18 +1452,22 @@ namespace Myelin.UI.Views
                     {
                         Terminal.Write("\x1b[3~"); // Delete
                     }
+                    _userScrolledUp = false;
                     break;
                 case Key.Insert:
                     Terminal.Write("\x1b[2~");
                     break;
                 case Key.Tab:
                     Terminal.Write("\t");
+                    _userScrolledUp = false;
                     break;
                 case Key.Up:
                     Terminal.Write("\x1b[A");
+                    _userScrolledUp = false;
                     break;
                 case Key.Down:
                     Terminal.Write("\x1b[B");
+                    _userScrolledUp = false;
                     break;
                 case Key.Right:
                     if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
@@ -1009,6 +1478,7 @@ namespace Myelin.UI.Views
                     {
                         Terminal.Write("\x1b[C");
                     }
+                    _userScrolledUp = false;
                     break;
                 case Key.Left:
                     if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
@@ -1019,12 +1489,15 @@ namespace Myelin.UI.Views
                     {
                         Terminal.Write("\x1b[D");
                     }
+                    _userScrolledUp = false;
                     break;
                 case Key.Home:
                     Terminal.Write("\x1b[H");
+                    _userScrolledUp = false;
                     break;
                 case Key.End:
                     Terminal.Write("\x1b[F");
+                    _userScrolledUp = false;
                     break;
                 case Key.PageUp:
                     Terminal.Write("\x1b[5~");
@@ -1046,38 +1519,43 @@ namespace Myelin.UI.Views
                 case Key.F12: Terminal.Write("\x1b[24~"); break;
                 case Key.A when e.KeyModifiers == KeyModifiers.Control:
                     Terminal.Write("\x01"); // Start of line
+                    _userScrolledUp = false;
                     break;
                 case Key.B when e.KeyModifiers == KeyModifiers.Control:
                     Terminal.Write("\x02"); // Char backward
+                    _userScrolledUp = false;
                     break;
                 case Key.C when e.KeyModifiers == KeyModifiers.Control:
                     Terminal.Write("\x03"); // SIGINT
+                    _userScrolledUp = false;
                     break;
                 case Key.D when e.KeyModifiers == KeyModifiers.Control:
                     Terminal.Write("\x04"); // EOF
+                    _userScrolledUp = false;
                     break;
                 case Key.E when e.KeyModifiers == KeyModifiers.Control:
                     Terminal.Write("\x05"); // End of line
+                    _userScrolledUp = false;
                     break;
                 case Key.F when e.KeyModifiers == KeyModifiers.Control:
                     Terminal.Write("\x06"); // Char forward
+                    _userScrolledUp = false;
                     break;
                 case Key.K when e.KeyModifiers == KeyModifiers.Control:
                     Terminal.Write("\x0B"); // Kill line to end
+                    _userScrolledUp = false;
                     break;
                 case Key.L when e.KeyModifiers == KeyModifiers.Control:
-                    _lines.Clear();
-                    _lines.Add(new List<TerminalCell>());
-                    _cursorRow = 0;
-                    _cursorCol = 0;
-                    _scrollOffset = 0;
+                    Terminal.Write("\x0c"); // FormFeed / redraw shell prompt cleanly
                     _userScrolledUp = false;
                     break;
                 case Key.U when e.KeyModifiers == KeyModifiers.Control:
                     Terminal.Write("\x15"); // Kill line to start
+                    _userScrolledUp = false;
                     break;
                 case Key.W when e.KeyModifiers == KeyModifiers.Control:
                     Terminal.Write("\x17"); // Delete word backward
+                    _userScrolledUp = false;
                     break;
                 default:
                     handled = false;
@@ -1096,7 +1574,6 @@ namespace Myelin.UI.Views
         {
             base.Render(context);
 
-            // Use local coordinates (0,0) for rendering, ignoring parent layout offsets
             var bounds = new Rect(0, 0, Bounds.Width, Bounds.Height);
             using var clip = context.PushClip(bounds);
 
@@ -1104,11 +1581,12 @@ namespace Myelin.UI.Views
             context.FillRectangle(GetCachedBrush(Color.Parse("#141414")), bounds);
 
             var cursorBrush = GetCachedBrush(Color.Parse("#528BFF"));
+            var unfocusedCursorBrush = GetCachedBrush(Color.Parse("#666666"));
             var selectionBrush = GetCachedBrush(Color.FromArgb(110, 38, 79, 120));
 
-            int visibleLineCount = (int)Math.Ceiling(bounds.Height / LineHeight) + 1;
-            int startIdx = Math.Max(0, Math.Min(_scrollOffset, _lines.Count - 1));
-            int endIdx = Math.Min(_lines.Count, startIdx + visibleLineCount);
+            int visibleLineCount = (int)Math.Ceiling(bounds.Height / _lineHeight) + 1;
+            int startIdx = Math.Max(0, Math.Min(_scrollOffset, Math.Max(0, Lines.Count - 1)));
+            int endIdx = Math.Min(Lines.Count, startIdx + visibleLineCount);
 
             double paddingX = 10;
             double paddingY = 6;
@@ -1124,19 +1602,19 @@ namespace Myelin.UI.Views
 
             for (int i = startIdx; i < endIdx; i++)
             {
-                var line = _lines[i];
-                double y = paddingY + ((i - startIdx) * LineHeight);
+                var line = Lines[i];
+                double y = Math.Round(paddingY + ((i - startIdx) * _lineHeight));
 
                 // Draw Selection Highlight Background
                 if (_hasSelection && i >= selStartRow && i <= selEndRow)
                 {
                     int sC = (i == selStartRow) ? selStartCol : 0;
-                    int eC = (i == selEndRow) ? selEndCol : Math.Max(line.Count, _cursorCol);
+                    int eC = (i == selEndRow) ? selEndCol : Math.Max(line.Count, CursorCol);
                     if (eC > sC)
                     {
-                        double selX = paddingX + (sC * _charWidth);
-                        double selW = (eC - sC) * _charWidth;
-                        context.FillRectangle(selectionBrush, new Rect(selX, y, selW, LineHeight));
+                        double selX = Math.Round(paddingX + (sC * _charWidth));
+                        double selW = Math.Round((eC - sC) * _charWidth);
+                        context.FillRectangle(selectionBrush, new Rect(selX, y, selW, _lineHeight));
                     }
                 }
 
@@ -1167,30 +1645,32 @@ namespace Myelin.UI.Views
                         }
                         string runText = new(chars);
 
-                        double spanX = paddingX + (spanStart * _charWidth);
+                        double spanX = Math.Round(paddingX + (spanStart * _charWidth), 2);
+                        double spanW = Math.Round((spanEnd - spanStart) * _charWidth, 2);
 
                         // Draw cell background if set
                         if (cell.Background.HasValue)
                         {
-                            double bgW = chars.Length * _charWidth;
                             context.FillRectangle(
                                 GetCachedBrush(cell.Background.Value),
-                                new Rect(spanX, y, bgW, LineHeight)
+                                new Rect(spanX, y, spanW, _lineHeight)
                             );
                         }
 
                         // Draw formatted text run
                         if (!string.IsNullOrEmpty(runText))
                         {
+                            var activeFont = cell.Bold ? _boldFont : _font;
                             var ft = new FormattedText(
                                 runText,
                                 CultureInfo.InvariantCulture,
                                 FlowDirection.LeftToRight,
-                                _font,
+                                activeFont,
                                 FontSize,
                                 GetCachedBrush(cell.Foreground)
                             );
-                            context.DrawText(ft, new Point(spanX, y));
+                            double textY = Math.Round(y + Math.Max(0, (_lineHeight - ft.Height) / 2.0));
+                            context.DrawText(ft, new Point(spanX, textY));
                         }
 
                         spanStart = spanEnd;
@@ -1198,10 +1678,13 @@ namespace Myelin.UI.Views
                 }
 
                 // Render terminal cursor directly on active line
-                if (i == _cursorRow && _cursorVisible && IsFocused)
+                if (i == CursorRow && _cursorVisible)
                 {
-                    double cursorX = paddingX + (_cursorCol * _charWidth);
-                    context.FillRectangle(cursorBrush, new Rect(cursorX, y + 1, 2, LineHeight - 2));
+                    double cursorX = Math.Round(paddingX + (CursorCol * _charWidth), 2);
+                    double cursorY = Math.Round(y + 2);
+                    double cursorH = Math.Round(_lineHeight - 4);
+                    var activeCursorBrush = IsFocused ? cursorBrush : unfocusedCursorBrush;
+                    context.FillRectangle(activeCursorBrush, new Rect(cursorX, cursorY, 2, cursorH));
                 }
             }
         }

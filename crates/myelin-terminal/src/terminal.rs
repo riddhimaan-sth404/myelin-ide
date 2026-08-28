@@ -160,6 +160,16 @@ pub struct TerminalSession {
 
 impl TerminalSession {
     pub fn spawn<P: AsRef<Path>>(cols: u16, rows: u16, working_dir: Option<P>) -> Result<Self, TerminalError> {
+        Self::spawn_with_shell(cols, rows, working_dir, None, None)
+    }
+
+    pub fn spawn_with_shell<P: AsRef<Path>>(
+        cols: u16,
+        rows: u16,
+        working_dir: Option<P>,
+        shell_path: Option<&str>,
+        shell_args: Option<&[&str]>,
+    ) -> Result<Self, TerminalError> {
         let pty_system = native_pty_system();
         let size = PtySize {
             rows,
@@ -170,11 +180,22 @@ impl TerminalSession {
 
         let pair = pty_system.openpty(size).map_err(|e| TerminalError::Pty(e.into()))?;
 
-        // Determine default shell
-        #[cfg(target_os = "windows")]
-        let mut cmd = CommandBuilder::new("powershell.exe");
-        #[cfg(not(target_os = "windows"))]
-        let mut cmd = CommandBuilder::new(std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string()));
+        // Determine shell command
+        let mut cmd = if let Some(shell) = shell_path {
+            let mut builder = CommandBuilder::new(shell);
+            if let Some(args) = shell_args {
+                for arg in args {
+                    builder.arg(*arg);
+                }
+            }
+            builder
+        } else {
+            #[cfg(target_os = "windows")]
+            let builder = CommandBuilder::new("powershell.exe");
+            #[cfg(not(target_os = "windows"))]
+            let builder = CommandBuilder::new(std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string()));
+            builder
+        };
 
         if let Some(dir) = working_dir {
             cmd.cwd(dir.as_ref());

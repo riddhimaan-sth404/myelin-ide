@@ -407,6 +407,17 @@ pub unsafe extern "C" fn myelin_terminal_create(
     rows: u16,
     working_dir: *const c_char,
 ) -> *mut TerminalHandle {
+    myelin_terminal_create_profile(cols, rows, working_dir, std::ptr::null(), std::ptr::null())
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn myelin_terminal_create_profile(
+    cols: u16,
+    rows: u16,
+    working_dir: *const c_char,
+    shell_path_utf8: *const c_char,
+    shell_args_utf8: *const c_char,
+) -> *mut TerminalHandle {
     let dir = if !working_dir.is_null() {
         let c_str = CStr::from_ptr(working_dir);
         c_str.to_str().ok().map(PathBuf::from)
@@ -414,7 +425,29 @@ pub unsafe extern "C" fn myelin_terminal_create(
         None
     };
 
-    match myelin_terminal::TerminalSession::spawn(cols, rows, dir.as_deref()) {
+    let shell = if !shell_path_utf8.is_null() {
+        let c_str = CStr::from_ptr(shell_path_utf8);
+        c_str.to_str().ok()
+    } else {
+        None
+    };
+
+    let args_str = if !shell_args_utf8.is_null() {
+        let c_str = CStr::from_ptr(shell_args_utf8);
+        c_str.to_str().ok()
+    } else {
+        None
+    };
+
+    let args_vec: Option<Vec<&str>> = args_str.map(|s| s.split_whitespace().collect());
+
+    match myelin_terminal::TerminalSession::spawn_with_shell(
+        cols,
+        rows,
+        dir.as_deref(),
+        shell,
+        args_vec.as_deref(),
+    ) {
         Ok(session) => Box::into_raw(Box::new(TerminalHandle {
             inner: parking_lot::Mutex::new(session),
         })),

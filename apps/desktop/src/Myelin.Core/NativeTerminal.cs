@@ -10,24 +10,31 @@ namespace Myelin.Core
         private TerminalHandle* _handle;
         private int _disposedFlag;
 
-        public NativeTerminal(ushort cols = 120, ushort rows = 30, string? workingDir = null)
+        public string? WorkingDir { get; }
+        public string? ShellPath { get; }
+        public string? ShellArgs { get; }
+
+        public NativeTerminal(ushort cols = 120, ushort rows = 30, string? workingDir = null, string? shellPath = null, string? shellArgs = null)
         {
-            if (workingDir != null)
+            WorkingDir = workingDir;
+            ShellPath = shellPath;
+            ShellArgs = shellArgs;
+
+            byte[]? dirBytes = workingDir != null ? Encoding.UTF8.GetBytes(workingDir + "\0") : null;
+            byte[]? shellBytes = shellPath != null ? Encoding.UTF8.GetBytes(shellPath + "\0") : null;
+            byte[]? argsBytes = shellArgs != null ? Encoding.UTF8.GetBytes(shellArgs + "\0") : null;
+
+            fixed (byte* pDir = dirBytes)
+            fixed (byte* pShell = shellBytes)
+            fixed (byte* pArgs = argsBytes)
             {
-                fixed (byte* p = Encoding.UTF8.GetBytes(workingDir + "\0"))
-                {
-                    _handle = NativeMethods.myelin_terminal_create(cols, rows, p);
-                }
-            }
-            else
-            {
-                _handle = NativeMethods.myelin_terminal_create(cols, rows, null);
+                _handle = NativeMethods.myelin_terminal_create_profile(cols, rows, pDir, pShell, pArgs);
             }
 
             if (_handle == null)
             {
                 throw new InvalidOperationException(
-                    "Failed to create the native terminal session (PTY spawn failed).");
+                    $"Failed to create native terminal session with shell '{shellPath ?? "default"}' (PTY spawn failed).");
             }
         }
 

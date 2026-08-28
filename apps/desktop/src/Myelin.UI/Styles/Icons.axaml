@@ -43,5 +43,26 @@
     <StreamGeometry x:Key="IconNewFile">M13 5h-1V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h4v-1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v1h-1a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm1 8a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v6z</StreamGeometry>
     <StreamGeometry x:Key="IconRefresh">M13.65 2.35l-1.4 1.4A5.94 5.94 0 0 0 8 2a6 6 0 1 0 6 6h-1.5A4.5 4.5 0 1 1 8 3.5c1.24 0 2.36.5 3.18 1.32L9.5 6.5H14V2l-.35.35z</StreamGeometry>
     <StreamGeometry x:Key="IconCommand">M4 4h2v2H4V4zm6 0h2v2h-2V4zm-6 6h2v2H4v-2zm6 0h2v2h-2v-2zm-3-5h2v6H7V5zM5 7h6v2H5V7z</StreamGeometry>
+    <StreamGeometry x:Key="IconPlus">M14 7v1H8v6H7V8H1V7h6V1h1v6h6z</StreamGeometry>
+    <StreamGeometry x:Key="IconClear">M3 3h10v1H3V3zm1 2h8v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5zm2 2v6h1V7H6zm3 0v6h1V7H9z</StreamGeometry>
+    <StreamGeometry x:Key="IconChevronUp">M4 10l4-5 4 5-.7.7-3.3-4.1-3.3 4.1L4 10z</StreamGeometry>
+    <StreamGeometry x:Key="IconExpand">M3 3v4h1V4h3V3H3zm7 0v1h3v3h1V3h-4zM3 13v-4h1v3h3v1H3zm10-4h1v4h-4v-1h3v-3z</StreamGeometry>
+    <StreamGeometry x:Key="IconCollapse">M6 6V2H5v3H2v1h4zm4 0h4V5h-3V2h-1v4zm0 4h1v3h3v1h-4v-4zm-4 0H2v1h3v3h1v-4z</StreamGeometry>
 
+    <!-- Official VS Code Codicon: New Folder & Collapse All -->
+    <StreamGeometry x:Key="IconNewFolder">M13 5h-1V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h4v-1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v1h-1a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm1 8a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v6z</StreamGeometry>
+    <StreamGeometry x:Key="IconCollapseAll">M9 1h1v4H9V1zm-4 8H1V8h4V5h1v4H5zm6 0v1H7V9h4zm4-1h-4V5h1v3h3v1zM2 13h12v1H2v-1z</StreamGeometry>
+
+    <!-- Official VS Code Codicon: Git Actions (Discard, Check, Minus, Sync) -->
+    <StreamGeometry x:Key="IconDiscard">M13.5 2l-1.5 1.5 1.5 1.5h-5A5.5 5.5 0 0 0 3 10.5 5.5 5.5 0 0 0 8.5 16H13v-1H8.5A4.5 4.5 0 0 1 4 10.5 4.5 4.5 0 0 1 8.5 6h5L12 7.5l1.5 1.5L16 6.5 13.5 2z</StreamGeometry>
+    <StreamGeometry x:Key="IconCheck">M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z</StreamGeometry>
+    <StreamGeometry x:Key="IconMinus">M15 8H1V7h14v1z</StreamGeometry>
+    <StreamGeometry x:Key="IconSync">M4.35 4.35l1.4 1.4A5.94 5.94 0 0 1 10 4a6 6 0 1 1-6 6H2.5A4.5 4.5 0 1 0 7 5.5c1.24 0 2.36.5 3.18 1.32L8.5 8.5H13V4l-.35.35z</StreamGeometry>
+
+    <!-- Official VS Code Codicon: Search Toggles (Case Sensitive, Whole Word, Regex) -->
+    <StreamGeometry x:Key="IconCaseSensitive">M3.6 11L4.8 7.6h4.4L10.4 11h1.5L7.7 3.5H6.3L2.1 11h1.5zm3.4-6.5l1.8 5H5.2L7 4.5zm5.7 6.5h1.2v-1.1h-.1c-.4.7-1.1 1.2-2 1.2-1.3 0-2.2-.9-2.2-2.3 0-1.5 1-2.2 2.3-2.2.7 0 1.4.3 1.8.7V6.8h1.2v4.2h-.2zm-1.8-.8c.8 0 1.5-.6 1.5-1.5 0-.8-.7-1.5-1.5-1.5-.9 0-1.5.7-1.5 1.5 0 .9.6 1.5 1.5 1.5z</StreamGeometry>
+    <StreamGeometry x:Key="IconWholeWord">M2 3h1v10H2V3zm11 0h1v10h-1V3zM4 6.5C4 5.7 4.7 5 5.5 5h5c.8 0 1.5.7 1.5 1.5v3c0 .8-.7 1.5-1.5 1.5h-5C4.7 11 4 10.3 4 9.5v-3zm1.5 0v3h5v-3h-5z</StreamGeometry>
+    <StreamGeometry x:Key="IconRegex">M3.5 6.5L5 8 3.5 9.5 4.2 10.2 5.7 8.7 7.2 10.2 7.9 9.5 6.4 8 7.9 6.5 7.2 5.8 5.7 7.3 4.2 5.8 3.5 6.5zM11 10.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z</StreamGeometry>
+    <StreamGeometry x:Key="IconReplace">M5 3.5l1.4 1.4A5.94 5.94 0 0 1 10.5 3a6 6 0 1 1-6 6H3A4.5 4.5 0 1 0 7.5 4.5c1.24 0 2.36.5 3.18 1.32L9 7.5H13.5V3l-.35.35z</StreamGeometry>
+    <StreamGeometry x:Key="IconReplaceAll">M2 2h3v1H2v9h9V9h1v3a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm6 3l1.4 1.4A5.94 5.94 0 0 1 13.5 4.5a6 6 0 1 1-6 6H6A4.5 4.5 0 1 0 10.5 6c1.24 0 2.36.5 3.18 1.32L12 9h4.5V4.5l-.35.35z</StreamGeometry>
 </ResourceDictionary>

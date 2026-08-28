@@ -3,6 +3,8 @@
         xmlns:vm="using:Myelin.UI.ViewModels"
         xmlns:views="using:Myelin.UI.Views"
         xmlns:models="using:Myelin.Core.Models"
+        xmlns:services="using:Myelin.Core.Services"
+        x:Name="MainWindowRoot"
         x:Class="Myelin.UI.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Title="Myelin IDE"
@@ -20,6 +22,7 @@
         <KeyBinding Gesture="Ctrl+B" Command="{Binding ToggleSidebarCommand}" />
         <KeyBinding Gesture="Ctrl+J" Command="{Binding ToggleTerminalCommand}" />
         <KeyBinding Gesture="Ctrl+OemTilde" Command="{Binding ToggleTerminalCommand}" />
+        <KeyBinding Gesture="Ctrl+Shift+OemTilde" Command="{Binding BottomPanel.CreateTerminalTabCommand}" />
         <KeyBinding Gesture="Ctrl+S" Command="{Binding SaveCurrentCommand}" />
         <KeyBinding Gesture="Ctrl+N" Command="{Binding NewFileCommand}" />
         <KeyBinding Gesture="Ctrl+Z" Command="{Binding UndoCurrentCommand}" />
@@ -189,11 +192,20 @@
                     </StackPanel>
                 </Grid>
             </Border>
-
             <!-- ========================================================================= -->
-            <!-- 2. WORKBENCH BODY (ActivityBar + SideBar + Editor Area)                   -->
+            <!-- 2. WORKBENCH BODY (ActivityBar + SideBar + Resizer Splitter + Editor Area) -->
             <!-- ========================================================================= -->
-            <Grid Grid.Row="1" ColumnDefinitions="48,Auto,*">
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <!-- Column 0: Activity Bar (48px) -->
+                    <ColumnDefinition Width="48" />
+                    <!-- Column 1: Primary SideBar (Resizable) -->
+                    <ColumnDefinition Width="{Binding IsSidebarOpen, Converter={x:Static views:SidebarColumnWidthConverter.Instance}}" MinWidth="0" MaxWidth="800" />
+                    <!-- Column 2: Resizer Splitter Handle between SideBar and Editor Area -->
+                    <ColumnDefinition Width="Auto" />
+                    <!-- Column 3: Editor + Bottom Dock Region (*) -->
+                    <ColumnDefinition Width="*" MinWidth="200" />
+                </Grid.ColumnDefinitions>
                 
                 <!-- 2.1 Activity Bar (48px Left Rail with 2px Active Indicator) -->
                 <Border Grid.Column="0" 
@@ -245,7 +257,7 @@
                                 </Button>
                             </Grid>
 
-                            <!-- Source Control -->
+                            <!-- Source Control (with Live Changes Badge) -->
                             <Grid Height="48">
                                 <Border HorizontalAlignment="Left" Width="2" 
                                         Background="{Binding ActiveActivityIndex, Converter={x:Static views:ActiveBorderConverter.Instance}, ConverterParameter=2}" />
@@ -259,10 +271,22 @@
                                         Command="{Binding SelectActivityCommand}"
                                         CommandParameter="2"
                                         ToolTip.Tip="Source Control (Ctrl+Shift+G)">
-                                    <Path Data="{StaticResource IconSourceControl}" 
-                                          Width="20" Height="20" 
-                                          Fill="{Binding ActiveActivityIndex, Converter={x:Static views:ActivityColorConverter.Instance}, ConverterParameter=2}" 
-                                          Stretch="Uniform" />
+                                    <Grid>
+                                        <Path Data="{StaticResource IconSourceControl}" 
+                                              Width="20" Height="20" 
+                                              Fill="{Binding ActiveActivityIndex, Converter={x:Static views:ActivityColorConverter.Instance}, ConverterParameter=2}" 
+                                              Stretch="Uniform" />
+                                        <!-- Changes Badge -->
+                                        <Border IsVisible="{Binding SourceControl.HasChanges}"
+                                                Background="#0078D4" CornerRadius="8"
+                                                Height="15" MinWidth="15" Padding="4,0"
+                                                HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                Margin="0,-4,-8,0">
+                                            <TextBlock Text="{Binding SourceControl.TotalChangesCount}" 
+                                                       FontSize="9" FontWeight="Bold" Foreground="White"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                    </Grid>
                                 </Button>
                             </Grid>
                         </StackPanel>
@@ -280,7 +304,7 @@
                                     CornerRadius="0"
                                     Command="{Binding SelectActivityCommand}"
                                     CommandParameter="3"
-                                    ToolTip.Tip="Settings">
+                                    ToolTip.Tip="Settings (Ctrl+,)">
                                 <Path Data="{StaticResource IconSettings}" 
                                       Width="20" Height="20" 
                                       Fill="{Binding ActiveActivityIndex, Converter={x:Static views:ActivityColorConverter.Instance}, ConverterParameter=3}" 
@@ -290,19 +314,30 @@
                     </DockPanel>
                 </Border>
 
-                <!-- 2.2 Primary Side Bar (260px) -->
-                <Grid Grid.Column="1" ColumnDefinitions="260,3" IsVisible="{Binding IsSidebarOpen}">
-                    <Border Grid.Column="0" Background="{StaticResource SideBarBackgroundBrush}">
-                        <DockPanel LastChildFill="True">
-                            <!-- SideBar Header (35px) -->
-                            <Border DockPanel.Dock="Top" Height="35" Padding="14,0" BorderBrush="{StaticResource SideBarBorderBrush}" BorderThickness="0,0,0,1">
+                <!-- 2.2 Primary Side Bar (Takes 100% of Column 1) -->
+                <Border Grid.Column="1" 
+                        Background="{StaticResource SideBarBackgroundBrush}"
+                        IsVisible="{Binding IsSidebarOpen}"
+                        MinWidth="160"
+                        MaxWidth="800">
+                    <DockPanel LastChildFill="True">
+                        <!-- ============================================================= -->
+                        <!-- 0: EXPLORER VIEW                                              -->
+                        <!-- ============================================================= -->
+                        <Grid RowDefinitions="35,*" IsVisible="{Binding ActiveActivityIndex, Converter={x:Static views:TabWeightConverter.Instance}, ConverterParameter=0}">
+                            <!-- Header (35px) -->
+                            <Border Grid.Row="0" Height="35" Padding="14,0,8,0" BorderBrush="{StaticResource SideBarBorderBrush}" BorderThickness="0,0,0,1">
                                 <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
-                                    <TextBlock Grid.Column="0" Text="{Binding ActiveSidebarTitle}" FontWeight="SemiBold" FontSize="11" 
+                                    <TextBlock Grid.Column="0" Text="{Binding WorkspaceName, StringFormat='EXPLORER: {0}'}" 
+                                               FontWeight="SemiBold" FontSize="11" TextTrimming="CharacterEllipsis"
                                                Foreground="{StaticResource SideBarHeaderForegroundBrush}" VerticalAlignment="Center" />
-                                    <!-- Header Action Toolbar -->
-                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="3" VerticalAlignment="Center">
+                                    <!-- Action Toolbar -->
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
                                         <Button Background="Transparent" Padding="4" Command="{Binding NewFileCommand}" ToolTip.Tip="New File">
                                             <Path Data="{StaticResource IconNewFile}" Width="13" Height="13" Fill="#858585" Stretch="Uniform" />
+                                        </Button>
+                                        <Button Background="Transparent" Padding="4" Command="{Binding NewFolderCommand}" ToolTip.Tip="New Folder">
+                                            <Path Data="{StaticResource IconNewFolder}" Width="13" Height="13" Fill="#858585" Stretch="Uniform" />
                                         </Button>
                                         <Button Background="Transparent" Padding="4" Command="{Binding RefreshExplorerCommand}" ToolTip.Tip="Refresh Explorer">
                                             <Path Data="{StaticResource IconRefresh}" Width="13" Height="13" Fill="#858585" Stretch="Uniform" />
@@ -311,67 +346,429 @@
                                 </Grid>
                             </Border>
 
-                            <!-- Section Header (22px Collapsible Pane Header) -->
-                            <Border DockPanel.Dock="Top" Height="22" Background="{StaticResource SideBarSectionHeaderBackgroundBrush}" Padding="8,0">
-                                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                                    <Path Data="{StaticResource IconChevronDown}" Width="10" Height="10" Fill="#CCCCCC" Stretch="Uniform" VerticalAlignment="Center" />
-                                    <TextBlock Text="FOLDERS" FontWeight="Bold" FontSize="11" Foreground="#CCCCCC" VerticalAlignment="Center" />
+                            <!-- Explorer Content (Open Editors + Folders) -->
+                            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                                <StackPanel Spacing="0">
+                                    <!-- Open Editors Section Header -->
+                                    <Border Height="22" Background="{StaticResource SideBarSectionHeaderBackgroundBrush}" Padding="8,0">
+                                        <Grid ColumnDefinitions="Auto,*,Auto">
+                                            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                                <Path Data="{StaticResource IconChevronDown}" Width="9" Height="9" Fill="#CCCCCC" Stretch="Uniform" VerticalAlignment="Center" />
+                                                <TextBlock Text="OPEN EDITORS" FontWeight="Bold" FontSize="11" Foreground="#CCCCCC" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="2" Text="{Binding Tabs.Count}" FontSize="10" Foreground="#888888" VerticalAlignment="Center" />
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Open Editors List -->
+                                    <ItemsControl ItemsSource="{Binding Tabs}" Margin="0,2,0,4">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type vm:DocumentTabViewModel}">
+                                                <Button Background="{Binding $parent[ListBoxItem].IsSelected, Converter={x:Static views:TabBackgroundConverter.Instance}}"
+                                                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                                        Padding="12,3" BorderThickness="0"
+                                                        Command="{Binding $parent[views:MainWindow].((vm:MainWindowViewModel)DataContext).SelectTabCommand}"
+                                                        CommandParameter="{Binding}">
+                                                    <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                                                        <Image Grid.Column="0" Source="{Binding FilePath, Converter={x:Static views:MaterialIconImageConverter.Instance}}" Width="14" Height="14" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Column="1" Text="{Binding Title}" FontSize="12" Foreground="#CCCCCC" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                                        <Ellipse Grid.Column="2" Width="6" Height="6" Fill="#EBCB8B" IsVisible="{Binding IsDirty}" Margin="4,0" VerticalAlignment="Center" />
+                                                        <Button Grid.Column="3" Background="Transparent" Padding="2" BorderThickness="0"
+                                                                Command="{Binding $parent[views:MainWindow].((vm:MainWindowViewModel)DataContext).CloseTabCommand}"
+                                                                CommandParameter="{Binding}" ToolTip.Tip="Close Tab">
+                                                            <Path Data="{StaticResource IconClose}" Width="7" Height="7" Fill="#858585" Stretch="Uniform" />
+                                                        </Button>
+                                                    </Grid>
+                                                </Button>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <!-- Folders Section Header -->
+                                    <Border Height="22" Background="{StaticResource SideBarSectionHeaderBackgroundBrush}" Padding="8,0">
+                                        <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                            <Path Data="{StaticResource IconChevronDown}" Width="9" Height="9" Fill="#CCCCCC" Stretch="Uniform" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding WorkspaceName, FallbackValue='FOLDERS'}" FontWeight="Bold" FontSize="11" Foreground="#CCCCCC" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Folder File Tree (Philipp Kief Material Icon Theme) -->
+                                    <TreeView ItemsSource="{Binding RootNode.Children}"
+                                              SelectionChanged="OnFileSelected"
+                                              Background="Transparent"
+                                              Margin="2,2">
+                                        <TreeView.ItemTemplate>
+                                            <TreeDataTemplate DataType="{x:Type models:FileNode}" ItemsSource="{Binding Children}">
+                                                <StackPanel Orientation="Horizontal" Spacing="6" Height="22" VerticalAlignment="Center">
+                                                    <Image Source="{Binding Converter={x:Static views:MaterialIconImageConverter.Instance}}" 
+                                                           Width="16" Height="16" 
+                                                           VerticalAlignment="Center" />
+                                                    <TextBlock Text="{Binding Name}" FontSize="13" Foreground="#CCCCCC" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </TreeDataTemplate>
+                                        </TreeView.ItemTemplate>
+                                    </TreeView>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Grid>
+
+                        <!-- ============================================================= -->
+                        <!-- 1: SEARCH VIEW                                                -->
+                        <!-- ============================================================= -->
+                        <Grid RowDefinitions="35,Auto,*" IsVisible="{Binding ActiveActivityIndex, Converter={x:Static views:TabWeightConverter.Instance}, ConverterParameter=1}">
+                            <!-- Header (35px) -->
+                            <Border Grid.Row="0" Height="35" Padding="14,0,8,0" BorderBrush="{StaticResource SideBarBorderBrush}" BorderThickness="0,0,0,1">
+                                <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                                    <TextBlock Grid.Column="0" Text="SEARCH" FontWeight="SemiBold" FontSize="11" Foreground="{StaticResource SideBarHeaderForegroundBrush}" VerticalAlignment="Center" />
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
+                                        <Button Background="Transparent" Padding="4" Command="{Binding Search.SearchCommand}" ToolTip.Tip="Refresh Search">
+                                            <Path Data="{StaticResource IconRefresh}" Width="12" Height="12" Fill="#858585" Stretch="Uniform" />
+                                        </Button>
+                                        <Button Background="Transparent" Padding="4" Command="{Binding Search.ClearSearchCommand}" ToolTip.Tip="Clear Search">
+                                            <Path Data="{StaticResource IconClear}" Width="12" Height="12" Fill="#858585" Stretch="Uniform" />
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <!-- Search Inputs -->
+                            <Border Grid.Row="1" Padding="12,8" BorderBrush="{StaticResource SideBarBorderBrush}" BorderThickness="0,0,0,1">
+                                <StackPanel Spacing="6">
+                                    <!-- Search Box with Modifiers -->
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBox Grid.Column="0" Text="{Binding Search.SearchQuery, Mode=TwoWay}"
+                                                 Watermark="Search files..." Padding="8,5" FontSize="12"
+                                                 Background="#1E1E1E" Foreground="#CCCCCC"
+                                                 BorderBrush="#3C3C3C" CornerRadius="2" />
+                                        <!-- Modifier Buttons -->
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" Margin="4,0,0,0">
+                                            <Button Padding="4" CornerRadius="2" BorderThickness="1"
+                                                    Background="{Binding Search.MatchCase, Converter={x:Static views:BoolToToggleBackgroundConverter.Instance}}"
+                                                    BorderBrush="{Binding Search.MatchCase, Converter={x:Static views:BoolToToggleBorderBrushConverter.Instance}}"
+                                                    Command="{Binding Search.ToggleMatchCaseCommand}" ToolTip.Tip="Match Case (Alt+C)">
+                                                <Path Data="{StaticResource IconCaseSensitive}" Width="12" Height="12" Fill="#CCCCCC" Stretch="Uniform" />
+                                            </Button>
+                                            <Button Padding="4" CornerRadius="2" BorderThickness="1"
+                                                    Background="{Binding Search.MatchWholeWord, Converter={x:Static views:BoolToToggleBackgroundConverter.Instance}}"
+                                                    BorderBrush="{Binding Search.MatchWholeWord, Converter={x:Static views:BoolToToggleBorderBrushConverter.Instance}}"
+                                                    Command="{Binding Search.ToggleMatchWholeWordCommand}" ToolTip.Tip="Match Whole Word (Alt+W)">
+                                                <Path Data="{StaticResource IconWholeWord}" Width="12" Height="12" Fill="#CCCCCC" Stretch="Uniform" />
+                                            </Button>
+                                            <Button Padding="4" CornerRadius="2" BorderThickness="1"
+                                                    Background="{Binding Search.UseRegex, Converter={x:Static views:BoolToToggleBackgroundConverter.Instance}}"
+                                                    BorderBrush="{Binding Search.UseRegex, Converter={x:Static views:BoolToToggleBorderBrushConverter.Instance}}"
+                                                    Command="{Binding Search.ToggleUseRegexCommand}" ToolTip.Tip="Use Regular Expression (Alt+R)">
+                                                <Path Data="{StaticResource IconRegex}" Width="12" Height="12" Fill="#CCCCCC" Stretch="Uniform" />
+                                            </Button>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!-- Summary -->
+                                    <TextBlock Text="{Binding Search.ResultSummary}" FontSize="11" Foreground="#888888" Margin="2,2,0,0" />
                                 </StackPanel>
                             </Border>
 
-                            <!-- SideBar Panel Switcher -->
-                            <Carousel SelectedIndex="{Binding ActiveActivityIndex}">
-                                <!-- 0: Explorer File Tree (Philipp Kief Material Icon Theme) -->
-                                <TreeView ItemsSource="{Binding RootNode.Children}"
-                                          SelectionChanged="OnFileSelected"
-                                          Background="Transparent"
-                                          Margin="2,4">
-                                    <TreeView.ItemTemplate>
-                                        <TreeDataTemplate DataType="{x:Type models:FileNode}" ItemsSource="{Binding Children}">
-                                            <StackPanel Orientation="Horizontal" Spacing="6" Height="22" VerticalAlignment="Center">
-                                                <Image Source="{Binding Converter={x:Static views:MaterialIconImageConverter.Instance}}" 
-                                                       Width="16" Height="16" 
-                                                       VerticalAlignment="Center" />
-                                                <TextBlock Text="{Binding Name}" FontSize="13" Foreground="#CCCCCC" VerticalAlignment="Center" />
+                            <!-- Results Tree -->
+                            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding Search.SearchResults}" Margin="4">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type services:SearchFileResult}">
+                                            <StackPanel Margin="0,2">
+                                                <!-- File Header -->
+                                                <Button Background="#252526" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                                        Padding="6,4" BorderThickness="0" CornerRadius="3"
+                                                        Command="{Binding $parent[views:MainWindow].((vm:MainWindowViewModel)DataContext).Search.ToggleFileExpandedCommand}"
+                                                        CommandParameter="{Binding}">
+                                                    <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+                                                        <Path Grid.Column="0" Data="{Binding IsExpanded, Converter={x:Static views:BoolToChevronIconConverter.Instance}}" Width="8" Height="8" Fill="#CCCCCC" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                                        <Image Grid.Column="1" Source="{Binding FilePath, Converter={x:Static views:MaterialIconImageConverter.Instance}}" Width="14" Height="14" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Column="2" Text="{Binding RelativePath}" FontSize="12" FontWeight="SemiBold" Foreground="#E0E0E0" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                                        <Border Grid.Column="3" Background="#04395E" CornerRadius="8" Padding="6,1" Margin="4,0,0,0">
+                                                            <TextBlock Text="{Binding MatchCount}" FontSize="10" Foreground="#9CDCFE" />
+                                                        </Border>
+                                                    </Grid>
+                                                </Button>
+
+                                                <!-- Match Items -->
+                                                <ItemsControl ItemsSource="{Binding Matches}" IsVisible="{Binding IsExpanded}" Margin="16,1,0,3">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate DataType="{x:Type services:SearchMatchItem}">
+                                                            <Button Background="Transparent" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                                                    Padding="4,2" BorderThickness="0"
+                                                                    Command="{Binding $parent[views:MainWindow].((vm:MainWindowViewModel)DataContext).Search.OpenMatchCommand}"
+                                                                    CommandParameter="{Binding}">
+                                                                <Grid ColumnDefinitions="Auto,*">
+                                                                    <TextBlock Grid.Column="0" Text="{Binding LineNumber, StringFormat='{}{0}: '}" FontSize="11" Foreground="#888888" Margin="0,0,4,0" />
+                                                                    <TextBlock Grid.Column="1" FontSize="11" Foreground="#CCCCCC" TextTrimming="CharacterEllipsis">
+                                                                        <Run Text="{Binding PrefixText}" Foreground="#AAAAAA" />
+                                                                        <Run Text="{Binding MatchText}" Background="#515C6B" Foreground="#FFFFFF" FontWeight="Bold" />
+                                                                        <Run Text="{Binding SuffixText}" Foreground="#AAAAAA" />
+                                                                    </TextBlock>
+                                                                </Grid>
+                                                            </Button>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
                                             </StackPanel>
-                                        </TreeDataTemplate>
-                                    </TreeView.ItemTemplate>
-                                </TreeView>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Grid>
 
-                                <!-- 1: Search Panel -->
-                                <StackPanel Margin="12" Spacing="10">
-                                    <TextBox Watermark="Search files..." Padding="8,6" />
-                                    <TextBlock Text="No search results yet." FontSize="12" Foreground="#888888" />
-                                </StackPanel>
-
-                                <!-- 2: Source Control Panel -->
-                                <StackPanel Margin="12" Spacing="10">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <Path Data="{StaticResource IconBranch}" Width="14" Height="14" Fill="#75BEFF" Stretch="Uniform" />
-                                        <TextBlock Text="{Binding GitBranch, StringFormat='{}Branch: {0}'}" FontSize="13" FontWeight="SemiBold" Foreground="#E0E0E0" />
+                        <!-- ============================================================= -->
+                        <!-- 2: SOURCE CONTROL (REAL GIT INTEGRATION)                      -->
+                        <!-- ============================================================= -->
+                        <Grid RowDefinitions="35,*" IsVisible="{Binding ActiveActivityIndex, Converter={x:Static views:TabWeightConverter.Instance}, ConverterParameter=2}">
+                            <!-- Header (35px) -->
+                            <Border Grid.Row="0" Height="35" Padding="14,0,8,0" BorderBrush="{StaticResource SideBarBorderBrush}" BorderThickness="0,0,0,1">
+                                <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                                    <TextBlock Grid.Column="0" Text="SOURCE CONTROL" FontWeight="SemiBold" FontSize="11" Foreground="{StaticResource SideBarHeaderForegroundBrush}" VerticalAlignment="Center" />
+                                    <!-- Action Toolbar -->
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                                        <Button Background="Transparent" Padding="4" Command="{Binding SourceControl.RefreshStatusCommand}" ToolTip.Tip="Refresh Git Status">
+                                            <Path Data="{StaticResource IconRefresh}" Width="12" Height="12" Fill="#858585" Stretch="Uniform" />
+                                        </Button>
+                                        <Button Background="Transparent" Padding="4" Command="{Binding SourceControl.StageAllCommand}" ToolTip.Tip="Stage All Changes">
+                                            <Path Data="{StaticResource IconPlus}" Width="12" Height="12" Fill="#858585" Stretch="Uniform" />
+                                        </Button>
+                                        <Button Background="Transparent" Padding="4" Command="{Binding SourceControl.CommitCommand}" ToolTip.Tip="Commit (Ctrl+Enter)">
+                                            <Path Data="{StaticResource IconCheck}" Width="12" Height="12" Fill="#858585" Stretch="Uniform" />
+                                        </Button>
+                                        <Button Background="Transparent" Padding="4" Command="{Binding SourceControl.PushCommand}" ToolTip.Tip="Push to Remote">
+                                            <Path Data="{StaticResource IconSync}" Width="12" Height="12" Fill="#858585" Stretch="Uniform" />
+                                        </Button>
                                     </StackPanel>
-                                    <TextBlock Text="Working tree clean." FontSize="12" Foreground="#888888" />
+                                </Grid>
+                            </Border>
+
+                            <!-- Non-Repository State -->
+                            <StackPanel Grid.Row="1" IsVisible="{Binding !SourceControl.IsGitRepository}" Margin="16" Spacing="12" VerticalAlignment="Center">
+                                <Path Data="{StaticResource IconSourceControl}" Width="32" Height="32" Fill="#666666" Stretch="Uniform" HorizontalAlignment="Center" />
+                                <TextBlock Text="No source control repository found." FontSize="12" Foreground="#888888" TextAlignment="Center" TextWrapping="Wrap" />
+                                <Button Background="#0078D4" Foreground="White" HorizontalAlignment="Center" Padding="14,6" CornerRadius="3"
+                                        Command="{Binding SourceControl.InitRepositoryCommand}">
+                                    <TextBlock Text="Initialize Repository" FontSize="12" FontWeight="SemiBold" />
+                                </Button>
+                            </StackPanel>
+
+                            <!-- Git Repository Active View -->
+                            <ScrollViewer Grid.Row="1" IsVisible="{Binding SourceControl.IsGitRepository}" VerticalScrollBarVisibility="Auto">
+                                <StackPanel Margin="0,6,0,12" Spacing="4">
+                                    <!-- Branch Info Bar -->
+                                    <Border Margin="10,0,10,6" Background="#252526" Padding="8,4" CornerRadius="3">
+                                        <Grid ColumnDefinitions="Auto,*,Auto">
+                                            <Path Grid.Column="0" Data="{StaticResource IconBranch}" Width="12" Height="12" Fill="#75BEFF" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="1" Text="{Binding SourceControl.CurrentBranch}" FontSize="12" FontWeight="SemiBold" Foreground="#E0E0E0" VerticalAlignment="Center" />
+                                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding SourceControl.AheadCount, StringFormat='↑{0}'}" FontSize="10" Foreground="#89D185" IsVisible="{Binding SourceControl.AheadCount}" />
+                                                <TextBlock Text="{Binding SourceControl.BehindCount, StringFormat='↓{0}'}" FontSize="10" Foreground="#F14C4C" IsVisible="{Binding SourceControl.BehindCount}" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Commit Message Input Box -->
+                                    <Border Margin="10,0,10,6">
+                                        <StackPanel Spacing="6">
+                                            <TextBox Text="{Binding SourceControl.CommitMessage, Mode=TwoWay}"
+                                                     Watermark="Message (Ctrl+Enter to commit)"
+                                                     AcceptsReturn="True" Height="65"
+                                                     Padding="8,6" FontSize="12"
+                                                     Background="#1E1E1E" Foreground="#CCCCCC"
+                                                     BorderBrush="#3C3C3C" CornerRadius="3" />
+                                            <Button Background="#0078D4" Foreground="White"
+                                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                                    Padding="0,6" CornerRadius="3"
+                                                    Command="{Binding SourceControl.CommitCommand}">
+                                                <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+                                                    <Path Data="{StaticResource IconCheck}" Width="11" Height="11" Fill="White" Stretch="Uniform" VerticalAlignment="Center" />
+                                                    <TextBlock Text="Commit" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- STAGED CHANGES Section -->
+                                    <StackPanel IsVisible="{Binding SourceControl.HasStagedChanges}">
+                                        <!-- Staged Header -->
+                                        <Button Background="{StaticResource SideBarSectionHeaderBackgroundBrush}"
+                                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                                Padding="8,3" BorderThickness="0"
+                                                Command="{Binding SourceControl.ToggleStagedSectionCommand}">
+                                            <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                                                <Path Grid.Column="0" Data="{Binding SourceControl.IsStagedExpanded, Converter={x:Static views:BoolToChevronIconConverter.Instance}}" Width="8" Height="8" Fill="#CCCCCC" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="1" Text="STAGED CHANGES" FontWeight="Bold" FontSize="11" Foreground="#CCCCCC" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="2" Text="{Binding SourceControl.StagedCount}" FontSize="10" Foreground="#888888" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                                <Button Grid.Column="3" Background="Transparent" Padding="2" BorderThickness="0" Command="{Binding SourceControl.UnstageAllCommand}" ToolTip.Tip="Unstage All">
+                                                    <Path Data="{StaticResource IconMinus}" Width="10" Height="10" Fill="#858585" Stretch="Uniform" />
+                                                </Button>
+                                            </Grid>
+                                        </Button>
+
+                                        <!-- Staged Items List -->
+                                        <ItemsControl ItemsSource="{Binding SourceControl.StagedChanges}" IsVisible="{Binding SourceControl.IsStagedExpanded}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="{x:Type models:GitFileItem}">
+                                                    <Button Background="Transparent" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                                            Padding="12,3" BorderThickness="0"
+                                                            Command="{Binding $parent[views:MainWindow].((vm:MainWindowViewModel)DataContext).SourceControl.OpenFileCommand}"
+                                                            CommandParameter="{Binding}">
+                                                        <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                                                            <Image Grid.Column="0" Source="{Binding FullPath, Converter={x:Static views:MaterialIconImageConverter.Instance}}" Width="14" Height="14" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                                            <TextBlock Grid.Column="1" Text="{Binding FileName}" FontSize="12" Foreground="#CCCCCC" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                                            <TextBlock Grid.Column="2" Text="{Binding StatusChar}" FontSize="11" FontWeight="Bold" Foreground="{Binding Status, Converter={x:Static views:GitStatusBrushConverter.Instance}}" Margin="6,0" VerticalAlignment="Center" ToolTip.Tip="{Binding StatusTooltip}" />
+                                                            <Button Grid.Column="3" Background="Transparent" Padding="3" BorderThickness="0"
+                                                                    Command="{Binding $parent[views:MainWindow].((vm:MainWindowViewModel)DataContext).SourceControl.UnstageFileCommand}"
+                                                                    CommandParameter="{Binding}" ToolTip.Tip="Unstage Changes">
+                                                                <Path Data="{StaticResource IconMinus}" Width="8" Height="8" Fill="#858585" Stretch="Uniform" />
+                                                            </Button>
+                                                        </Grid>
+                                                    </Button>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+
+                                    <!-- CHANGES Section -->
+                                    <StackPanel>
+                                        <!-- Changes Header -->
+                                        <Button Background="{StaticResource SideBarSectionHeaderBackgroundBrush}"
+                                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                                Padding="8,3" BorderThickness="0"
+                                                Command="{Binding SourceControl.ToggleChangesSectionCommand}">
+                                            <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                                                <Path Grid.Column="0" Data="{Binding SourceControl.IsChangesExpanded, Converter={x:Static views:BoolToChevronIconConverter.Instance}}" Width="8" Height="8" Fill="#CCCCCC" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="1" Text="CHANGES" FontWeight="Bold" FontSize="11" Foreground="#CCCCCC" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="2" Text="{Binding SourceControl.ChangesCount}" FontSize="10" Foreground="#888888" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                                <Button Grid.Column="3" Background="Transparent" Padding="2" BorderThickness="0" Command="{Binding SourceControl.StageAllCommand}" ToolTip.Tip="Stage All">
+                                                    <Path Data="{StaticResource IconPlus}" Width="10" Height="10" Fill="#858585" Stretch="Uniform" />
+                                                </Button>
+                                            </Grid>
+                                        </Button>
+
+                                        <!-- Changes Items List -->
+                                        <ItemsControl ItemsSource="{Binding SourceControl.WorkingChanges}" IsVisible="{Binding SourceControl.IsChangesExpanded}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="{x:Type models:GitFileItem}">
+                                                    <Button Background="Transparent" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                                            Padding="12,3" BorderThickness="0"
+                                                            Command="{Binding $parent[views:MainWindow].((vm:MainWindowViewModel)DataContext).SourceControl.OpenFileCommand}"
+                                                            CommandParameter="{Binding}">
+                                                        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
+                                                            <Image Grid.Column="0" Source="{Binding FullPath, Converter={x:Static views:MaterialIconImageConverter.Instance}}" Width="14" Height="14" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                                            <TextBlock Grid.Column="1" Text="{Binding FileName}" FontSize="12" Foreground="#CCCCCC" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                                            <TextBlock Grid.Column="2" Text="{Binding StatusChar}" FontSize="11" FontWeight="Bold" Foreground="{Binding Status, Converter={x:Static views:GitStatusBrushConverter.Instance}}" Margin="6,0" VerticalAlignment="Center" ToolTip.Tip="{Binding StatusTooltip}" />
+                                                            <Button Grid.Column="3" Background="Transparent" Padding="3" BorderThickness="0"
+                                                                    Command="{Binding $parent[views:MainWindow].((vm:MainWindowViewModel)DataContext).SourceControl.DiscardChangesCommand}"
+                                                                    CommandParameter="{Binding}" ToolTip.Tip="Discard Changes">
+                                                                <Path Data="{StaticResource IconDiscard}" Width="9" Height="9" Fill="#858585" Stretch="Uniform" />
+                                                            </Button>
+                                                            <Button Grid.Column="4" Background="Transparent" Padding="3" BorderThickness="0"
+                                                                    Command="{Binding $parent[views:MainWindow].((vm:MainWindowViewModel)DataContext).SourceControl.StageFileCommand}"
+                                                                    CommandParameter="{Binding}" ToolTip.Tip="Stage Changes">
+                                                                <Path Data="{StaticResource IconPlus}" Width="9" Height="9" Fill="#858585" Stretch="Uniform" />
+                                                            </Button>
+                                                        </Grid>
+                                                    </Button>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
                                 </StackPanel>
+                            </ScrollViewer>
+                        </Grid>
 
-                                <!-- 3: Settings Panel -->
-                                <StackPanel Margin="12" Spacing="8">
-                                    <TextBlock Text="Settings" FontWeight="Bold" FontSize="13" Foreground="#E0E0E0" />
-                                    <TextBlock Text="Theme: VS Code Dark Modern" FontSize="12" Foreground="#AAAAAA" />
-                                    <TextBlock Text="Icon Theme: Philipp Kief Material Icon Theme (Official 1,250+ Icons)" FontSize="12" Foreground="#AAAAAA" />
-                                    <TextBlock Text="Editor Font: Cascadia Code" FontSize="12" Foreground="#AAAAAA" />
-                                    <TextBlock Text="Terminal: Windows ConPTY (Native)" FontSize="12" Foreground="#AAAAAA" />
+                        <!-- ============================================================= -->
+                        <!-- 3: SETTINGS VIEW                                              -->
+                        <!-- ============================================================= -->
+                        <Grid RowDefinitions="35,*" IsVisible="{Binding ActiveActivityIndex, Converter={x:Static views:TabWeightConverter.Instance}, ConverterParameter=3}">
+                            <!-- Header (35px) -->
+                            <Border Grid.Row="0" Height="35" Padding="14,0,8,0" BorderBrush="{StaticResource SideBarBorderBrush}" BorderThickness="0,0,0,1">
+                                <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                                    <TextBlock Grid.Column="0" Text="SETTINGS" FontWeight="SemiBold" FontSize="11" Foreground="{StaticResource SideBarHeaderForegroundBrush}" VerticalAlignment="Center" />
+                                    <Button Grid.Column="1" Background="Transparent" Padding="4" Command="{Binding Settings.ResetDefaultsCommand}" ToolTip.Tip="Reset to Defaults">
+                                        <Path Data="{StaticResource IconRefresh}" Width="12" Height="12" Fill="#858585" Stretch="Uniform" />
+                                    </Button>
+                                </Grid>
+                            </Border>
+
+                            <!-- Settings Content -->
+                            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                                <StackPanel Margin="12" Spacing="16">
+                                    <!-- Category: Editor -->
+                                    <Border Background="#252526" Padding="12" CornerRadius="4">
+                                        <StackPanel Spacing="10">
+                                            <TextBlock Text="Editor" FontWeight="Bold" FontSize="13" Foreground="#E0E0E0" />
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <TextBlock Grid.Column="0" Text="Font Size" FontSize="12" Foreground="#CCCCCC" VerticalAlignment="Center" />
+                                                <NumericUpDown Grid.Column="1" Value="{Binding Settings.EditorFontSize, Mode=TwoWay}" Minimum="10" Maximum="28" Width="100" Height="28" />
+                                            </Grid>
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <TextBlock Grid.Column="0" Text="Tab Size" FontSize="12" Foreground="#CCCCCC" VerticalAlignment="Center" />
+                                                <ComboBox Grid.Column="1" ItemsSource="{Binding Settings.AvailableTabSizes}" SelectedItem="{Binding Settings.EditorTabSize, Mode=TwoWay}" Width="100" Height="28" />
+                                            </Grid>
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <TextBlock Grid.Column="0" Text="Word Wrap" FontSize="12" Foreground="#CCCCCC" VerticalAlignment="Center" />
+                                                <ToggleSwitch Grid.Column="1" IsChecked="{Binding Settings.WordWrap, Mode=TwoWay}" OnContent="" OffContent="" />
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Category: Terminal -->
+                                    <Border Background="#252526" Padding="12" CornerRadius="4">
+                                        <StackPanel Spacing="10">
+                                            <TextBlock Text="Terminal" FontWeight="Bold" FontSize="13" Foreground="#E0E0E0" />
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <TextBlock Grid.Column="0" Text="Engine" FontSize="12" Foreground="#CCCCCC" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="1" Text="Windows ConPTY (Native)" FontSize="11" Foreground="#9CDCFE" VerticalAlignment="Center" />
+                                            </Grid>
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <TextBlock Grid.Column="0" Text="Font Size" FontSize="12" Foreground="#CCCCCC" VerticalAlignment="Center" />
+                                                <NumericUpDown Grid.Column="1" Value="{Binding Settings.TerminalFontSize, Mode=TwoWay}" Minimum="10" Maximum="24" Width="100" Height="28" />
+                                            </Grid>
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <TextBlock Grid.Column="0" Text="Cursor Blinking" FontSize="12" Foreground="#CCCCCC" VerticalAlignment="Center" />
+                                                <ToggleSwitch Grid.Column="1" IsChecked="{Binding Settings.CursorBlinking, Mode=TwoWay}" OnContent="" OffContent="" />
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Category: Appearance -->
+                                    <Border Background="#252526" Padding="12" CornerRadius="4">
+                                        <StackPanel Spacing="10">
+                                            <TextBlock Text="Appearance" FontWeight="Bold" FontSize="13" Foreground="#E0E0E0" />
+                                            <StackPanel Spacing="4">
+                                                <TextBlock Text="Color Theme" FontSize="12" Foreground="#CCCCCC" />
+                                                <ComboBox ItemsSource="{Binding Settings.AvailableThemes}" SelectedItem="{Binding Settings.SelectedTheme, Mode=TwoWay}" HorizontalAlignment="Stretch" Height="28" />
+                                            </StackPanel>
+                                            <StackPanel Spacing="4">
+                                                <TextBlock Text="Icon Theme" FontSize="12" Foreground="#CCCCCC" />
+                                                <TextBlock Text="Philipp Kief Material Icon Theme (Official 1,250+ Icons)" FontSize="11" Foreground="#9CDCFE" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
                                 </StackPanel>
-                            </Carousel>
-                        </DockPanel>
-                    </Border>
+                            </ScrollViewer>
+                        </Grid>
+                    </DockPanel>
+                </Border>
 
-                    <!-- Resizer Splitter -->
-                    <GridSplitter Grid.Column="1" Background="{StaticResource SideBarBorderBrush}" ResizeDirection="Columns" />
-                </Grid>
+                <!-- 2.3 Resizer Splitter Handle between SideBar and Editor Area -->
+                <GridSplitter Grid.Column="2" 
+                              Width="4" 
+                              Background="{StaticResource SideBarBorderBrush}" 
+                              ResizeDirection="Columns" 
+                              IsVisible="{Binding IsSidebarOpen}" 
+                              Cursor="SizeWestEast" />
 
-                <!-- 2.3 Editor + Bottom Dock Region -->
-                <Grid Grid.Column="2" RowDefinitions="*,Auto">
-                    
+                <!-- 2.4 Editor + Bottom Dock Region -->
+                <Grid Grid.Column="3">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" MinHeight="100" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="{Binding BottomPanel.IsOpen, Converter={x:Static views:PanelRowHeightConverter.Instance}}" MinHeight="0" MaxHeight="1200" />
+                    </Grid.RowDefinitions>
+
                     <!-- Editor Region (Tabs + Editor Canvas) -->
                     <Grid Grid.Row="0" RowDefinitions="35,*" ClipToBounds="True">
                         
@@ -438,114 +835,191 @@
                                             VerticalAlignment="Stretch" />
                     </Grid>
 
-                    <!-- Bottom Dockable Panel Region (Splitter + Responsive Resizable Panel) -->
-                    <Grid Grid.Row="1" RowDefinitions="4,Auto" IsVisible="{Binding BottomPanel.IsOpen}">
-                        
-                        <!-- Resizer Splitter -->
-                        <GridSplitter Grid.Row="0" Height="4" Background="{StaticResource PanelBorderBrush}" ResizeDirection="Rows" />
+                    <!-- Resizer Splitter Handle between Editor and Bottom Panel -->
+                    <GridSplitter Grid.Row="1" Height="4" Background="{StaticResource PanelBorderBrush}" ResizeDirection="Rows" IsVisible="{Binding BottomPanel.IsOpen}" Cursor="SizeNorthSouth" />
 
-                        <!-- Bottom Dockable Panel Border with Two-Way Height Binding -->
-                        <Border Grid.Row="1" 
-                                Height="{Binding BottomPanel.PanelHeight, Mode=TwoWay}"
-                                MinHeight="120"
-                                MaxHeight="600"
-                                Background="{StaticResource PanelBackgroundBrush}" 
-                                BorderBrush="{StaticResource PanelBorderBrush}" 
-                                BorderThickness="0,1,0,0">
-                            <Grid RowDefinitions="35,*">
-                                <!-- Panel Header (35px) -->
-                                <Border Grid.Row="0" Height="35" Background="{StaticResource TitleBarBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="0,0,0,1">
-                                    <Grid ColumnDefinitions="Auto,*,Auto">
-                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="16" Margin="14,0,0,0" VerticalAlignment="Center">
-                                            <!-- Terminal Tab -->
-                                            <Button Background="Transparent" BorderThickness="0" Padding="0" Click="OnTerminalTabClick">
-                                                <Grid Height="35">
-                                                    <Border VerticalAlignment="Bottom" Height="2" Background="{StaticResource PanelActiveBorderBrush}" 
-                                                            IsVisible="{Binding BottomPanel.SelectedTabIndex, Converter={x:Static views:TabWeightConverter.Instance}, ConverterParameter=0}" />
-                                                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                                        <Path Data="{StaticResource IconTerminal}" Width="13" Height="13" 
-                                                              Fill="{Binding BottomPanel.SelectedTabIndex, Converter={x:Static views:TabForegroundConverter.Instance}, ConverterParameter=0}" 
-                                                              Stretch="Uniform" VerticalAlignment="Center" />
-                                                        <TextBlock Text="TERMINAL" FontSize="11" FontWeight="SemiBold"
-                                                                   Foreground="{Binding BottomPanel.SelectedTabIndex, Converter={x:Static views:TabForegroundConverter.Instance}, ConverterParameter=0}" />
-                                                    </StackPanel>
-                                                </Grid>
-                                            </Button>
+                    <!-- Bottom Dockable Panel Border with Direct Drag Handle Resizing -->
+                    <Border Grid.Row="2" 
+                            Background="{StaticResource PanelBackgroundBrush}" 
+                            BorderBrush="{StaticResource PanelBorderBrush}" 
+                            BorderThickness="0,1,0,0"
+                            IsVisible="{Binding BottomPanel.IsOpen}">
+                        <Grid RowDefinitions="35,*">
+                            <!-- Panel Header (35px) -->
+                            <Border Grid.Row="0" Height="35" Background="{StaticResource TitleBarBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="0,0,0,1">
+                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="16" Margin="14,0,0,0" VerticalAlignment="Center">
+                                        <!-- Terminal Tab -->
+                                        <Button Background="Transparent" BorderThickness="0" Padding="0" Click="OnTerminalTabClick">
+                                            <Grid Height="35">
+                                                <Border VerticalAlignment="Bottom" Height="2" Background="{StaticResource PanelActiveBorderBrush}" 
+                                                        IsVisible="{Binding BottomPanel.SelectedTabIndex, Converter={x:Static views:TabWeightConverter.Instance}, ConverterParameter=0}" />
+                                                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                                    <Path Data="{StaticResource IconTerminal}" Width="13" Height="13" 
+                                                          Fill="{Binding BottomPanel.SelectedTabIndex, Converter={x:Static views:TabForegroundConverter.Instance}, ConverterParameter=0}" 
+                                                          Stretch="Uniform" VerticalAlignment="Center" />
+                                                    <TextBlock Text="TERMINAL" FontSize="11" FontWeight="SemiBold"
+                                                               Foreground="{Binding BottomPanel.SelectedTabIndex, Converter={x:Static views:TabForegroundConverter.Instance}, ConverterParameter=0}" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Button>
 
-                                            <!-- Output Tab -->
-                                            <Button Background="Transparent" BorderThickness="0" Padding="0" Click="OnOutputTabClick">
-                                                <Grid Height="35">
-                                                    <Border VerticalAlignment="Bottom" Height="2" Background="{StaticResource PanelActiveBorderBrush}" 
-                                                            IsVisible="{Binding BottomPanel.SelectedTabIndex, Converter={x:Static views:TabWeightConverter.Instance}, ConverterParameter=1}" />
-                                                    <TextBlock Text="OUTPUT" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"
-                                                               Foreground="{Binding BottomPanel.SelectedTabIndex, Converter={x:Static views:TabForegroundConverter.Instance}, ConverterParameter=1}" />
-                                                </Grid>
-                                            </Button>
+                                        <!-- Output Tab -->
+                                        <Button Background="Transparent" BorderThickness="0" Padding="0" Click="OnOutputTabClick">
+                                            <Grid Height="35">
+                                                <Border VerticalAlignment="Bottom" Height="2" Background="{StaticResource PanelActiveBorderBrush}" 
+                                                        IsVisible="{Binding BottomPanel.SelectedTabIndex, Converter={x:Static views:TabWeightConverter.Instance}, ConverterParameter=1}" />
+                                                <TextBlock Text="OUTPUT" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"
+                                                           Foreground="{Binding BottomPanel.SelectedTabIndex, Converter={x:Static views:TabForegroundConverter.Instance}, ConverterParameter=1}" />
+                                            </Grid>
+                                        </Button>
 
-                                            <!-- Problems Tab -->
-                                            <Button Background="Transparent" BorderThickness="0" Padding="0" Click="OnProblemsTabClick">
-                                                <Grid Height="35">
-                                                    <Border VerticalAlignment="Bottom" Height="2" Background="{StaticResource PanelActiveBorderBrush}" 
-                                                            IsVisible="{Binding BottomPanel.SelectedTabIndex, Converter={x:Static views:TabWeightConverter.Instance}, ConverterParameter=2}" />
-                                                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                                        <Path Data="{StaticResource IconError}" Width="13" Height="13" 
-                                                              Fill="{Binding BottomPanel.SelectedTabIndex, Converter={x:Static views:TabForegroundConverter.Instance}, ConverterParameter=2}" 
-                                                              Stretch="Uniform" VerticalAlignment="Center" />
-                                                        <TextBlock Text="PROBLEMS" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"
-                                                                   Foreground="{Binding BottomPanel.SelectedTabIndex, Converter={x:Static views:TabForegroundConverter.Instance}, ConverterParameter=2}" />
-                                                        <TextBlock Text="{Binding BottomPanel.ErrorCount, StringFormat='({0})'}" 
-                                                                   FontSize="11" Foreground="#888888" VerticalAlignment="Center" />
-                                                    </StackPanel>
-                                                </Grid>
-                                            </Button>
-                                        </StackPanel>
+                                        <!-- Problems Tab -->
+                                        <Button Background="Transparent" BorderThickness="0" Padding="0" Click="OnProblemsTabClick">
+                                            <Grid Height="35">
+                                                <Border VerticalAlignment="Bottom" Height="2" Background="{StaticResource PanelActiveBorderBrush}" 
+                                                        IsVisible="{Binding BottomPanel.SelectedTabIndex, Converter={x:Static views:TabWeightConverter.Instance}, ConverterParameter=2}" />
+                                                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                                    <Path Data="{StaticResource IconError}" Width="13" Height="13" 
+                                                          Fill="{Binding BottomPanel.SelectedTabIndex, Converter={x:Static views:TabForegroundConverter.Instance}, ConverterParameter=2}" 
+                                                          Stretch="Uniform" VerticalAlignment="Center" />
+                                                    <TextBlock Text="PROBLEMS" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"
+                                                               Foreground="{Binding BottomPanel.SelectedTabIndex, Converter={x:Static views:TabForegroundConverter.Instance}, ConverterParameter=2}" />
+                                                    <TextBlock Text="{Binding BottomPanel.ErrorCount, StringFormat='({0})'}" 
+                                                               FontSize="11" Foreground="#888888" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Button>
+                                    </StackPanel>
 
-                                        <!-- Panel Actions Toolbar -->
-                                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" Margin="0,0,10,0" VerticalAlignment="Center">
-                                            <Button Background="Transparent" Padding="5" Command="{Binding BottomPanel.OpenExternalAlacrittyCommand}" ToolTip.Tip="Open in External Terminal">
-                                                <Path Data="{StaticResource IconTerminal}" Width="12" Height="12" Fill="#858585" Stretch="Uniform" />
-                                            </Button>
-                                            <Button Background="Transparent" Padding="5" Command="{Binding BottomPanel.CloseCommand}" ToolTip.Tip="Close Panel (Ctrl+J)">
-                                                <Path Data="{StaticResource IconClose}" Width="10" Height="10" Fill="#858585" Stretch="Uniform" />
-                                            </Button>
-                                        </StackPanel>
-                                    </Grid>
-                                </Border>
+                                    <!-- Panel Actions Toolbar -->
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" Margin="0,0,10,0" VerticalAlignment="Center">
+                                        <!-- Profile Selector '+' Button (when Terminal tab active) -->
+                                        <Button x:Name="NewTerminalProfileButton"
+                                                Background="Transparent" Padding="5" 
+                                                ToolTip.Tip="New Terminal with Profile (PowerShell, CMD, Git Bash, WSL...)"
+                                                IsVisible="{Binding BottomPanel.SelectedTabIndex, Converter={x:Static views:TabWeightConverter.Instance}, ConverterParameter=0}">
+                                            <Path Data="{StaticResource IconPlus}" Width="12" Height="12" Fill="#CCCCCC" Stretch="Uniform" />
+                                            <Button.Flyout>
+                                                <MenuFlyout ItemsSource="{Binding BottomPanel.AvailableProfiles}">
+                                                    <MenuFlyout.ItemContainerTheme>
+                                                        <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}" x:DataType="models:TerminalProfile">
+                                                            <Setter Property="Header" Value="{Binding Name}" />
+                                                            <Setter Property="Command" Value="{Binding #MainWindowRoot.((vm:MainWindowViewModel)DataContext).BottomPanel.LaunchProfileCommand}" />
+                                                            <Setter Property="CommandParameter" Value="{Binding}" />
+                                                        </ControlTheme>
+                                                    </MenuFlyout.ItemContainerTheme>
+                                                </MenuFlyout>
+                                            </Button.Flyout>
+                                        </Button>
 
-                                <!-- Panel Content -->
-                                <Carousel Grid.Row="1" SelectedIndex="{Binding BottomPanel.SelectedTabIndex}">
-                                    <!-- 1. Direct-Input Hardware-Accelerated Interactive Terminal Canvas -->
-                                    <views:TerminalCanvas x:Name="TerminalCanvasControl"
+                                        <!-- Clear Terminal Button (when Terminal tab active) -->
+                                        <Button Background="Transparent" Padding="5" 
+                                                Command="{Binding BottomPanel.ClearTerminalCommand}" 
+                                                ToolTip.Tip="Clear Terminal (Ctrl+L)"
+                                                IsVisible="{Binding BottomPanel.SelectedTabIndex, Converter={x:Static views:TabWeightConverter.Instance}, ConverterParameter=0}">
+                                            <Path Data="{StaticResource IconClear}" Width="11" Height="11" Fill="#858585" Stretch="Uniform" />
+                                        </Button>
+
+                                        <!-- Open External Terminal Button -->
+                                        <Button Background="Transparent" Padding="5" Command="{Binding BottomPanel.OpenExternalAlacrittyCommand}" ToolTip.Tip="Open in External Terminal">
+                                            <Path Data="{StaticResource IconTerminal}" Width="12" Height="12" Fill="#858585" Stretch="Uniform" />
+                                        </Button>
+
+                                        <!-- Close Panel Button -->
+                                        <Button Background="Transparent" Padding="5" Command="{Binding BottomPanel.CloseCommand}" ToolTip.Tip="Close Panel (Ctrl+J)">
+                                            <Path Data="{StaticResource IconClose}" Width="10" Height="10" Fill="#858585" Stretch="Uniform" />
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <!-- Panel Content (Tab Switcher with Direct Dynamic Sizing) -->
+                            <Grid Grid.Row="1">
+                                <!-- 1. Interactive Terminal Canvas + Right-Side Active Instances Pane -->
+                                <Grid ColumnDefinitions="*,Auto,200"
+                                      IsVisible="{Binding BottomPanel.SelectedTabIndex, Converter={x:Static views:TabWeightConverter.Instance}, ConverterParameter=0}">
+                                    <!-- Main Interactive Terminal Canvas -->
+                                    <views:TerminalCanvas Grid.Column="0"
+                                                          x:Name="TerminalCanvasControl"
                                                           Terminal="{Binding BottomPanel.TerminalSession}"
                                                           HorizontalAlignment="Stretch"
                                                           VerticalAlignment="Stretch" />
 
-                                    <!-- 2. Build Output View -->
-                                    <ScrollViewer Margin="8">
-                                        <TextBlock Text="{Binding BottomPanel.BuildOutput}" 
-                                                   FontFamily="Cascadia Code, Consolas, Courier New, monospace" 
-                                                   FontSize="12" 
-                                                   Foreground="#9CDCFE" />
-                                    </ScrollViewer>
+                                    <!-- Splitter / Separator Border -->
+                                    <GridSplitter Grid.Column="1" Width="3" Background="{StaticResource PanelBorderBrush}" ResizeDirection="Columns" Cursor="SizeWestEast" />
 
-                                    <!-- 3. Problems View -->
-                                    <ListBox ItemsSource="{Binding BottomPanel.Problems}" Background="Transparent" Margin="4">
-                                        <ListBox.ItemTemplate>
-                                            <DataTemplate DataType="{x:Type vm:ProblemItem}">
-                                                <Grid ColumnDefinitions="Auto,*,Auto" Margin="4,2">
-                                                    <Path Grid.Column="0" Data="{StaticResource IconError}" Width="12" Height="12" Fill="{Binding Color}" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center" />
-                                                    <TextBlock Grid.Column="1" Text="{Binding Message}" FontSize="13" Foreground="#D4D4D4" VerticalAlignment="Center" />
-                                                    <TextBlock Grid.Column="2" Text="{Binding File, StringFormat='{}{0}'}" FontSize="11" Foreground="#888888" VerticalAlignment="Center" />
+                                    <!-- Right-Side Vertical Active Terminal Instances Pane (ONLY Active Instances) -->
+                                    <Border Grid.Column="2" MinWidth="130" MaxWidth="500" Background="{StaticResource SideBarBackgroundColor}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1,0,0,0">
+                                        <Grid RowDefinitions="28,*">
+                                            <!-- Header with Title & Quick Action -->
+                                            <Border Grid.Row="0" Height="28" Padding="10,0,6,0" Background="{StaticResource TitleBarBackgroundBrush}" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="0,0,0,1">
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <TextBlock Grid.Column="0" Text="OPEN TERMINALS" FontSize="10" FontWeight="SemiBold" Foreground="#888888" VerticalAlignment="Center" />
+                                                    <Button Grid.Column="1" Background="Transparent" Padding="4" Command="{Binding BottomPanel.CreateTerminalTabCommand}" ToolTip.Tip="New Default Terminal (Ctrl+Shift+`)">
+                                                        <Path Data="{StaticResource IconPlus}" Width="10" Height="10" Fill="#CCCCCC" Stretch="Uniform" />
+                                                    </Button>
                                                 </Grid>
-                                            </DataTemplate>
-                                        </ListBox.ItemTemplate>
-                                    </ListBox>
-                                </Carousel>
+                                            </Border>
+
+                                            <!-- Vertically Stacked Open Terminal Instances List -->
+                                            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                                                <ItemsControl ItemsSource="{Binding BottomPanel.TerminalTabs}" Margin="0,3,0,3">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate DataType="{x:Type vm:TerminalTabItem}">
+                                                            <Button Background="{Binding IsActive, Converter={x:Static views:TerminalTabActiveBackgroundConverter.Instance}}"
+                                                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                                                    Padding="8,5" Margin="3,1" CornerRadius="3" BorderThickness="0"
+                                                                    Command="{Binding $parent[views:MainWindow].((vm:MainWindowViewModel)DataContext).BottomPanel.SelectTerminalTabCommand}"
+                                                                    CommandParameter="{Binding}">
+                                                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                                                    <Path Grid.Column="0" Data="{StaticResource IconTerminal}" Width="11" Height="11" Fill="#9CDCFE" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                                    <TextBlock Grid.Column="1" Text="{Binding Title}" FontSize="12" Foreground="{Binding IsActive, Converter={x:Static views:TabForegroundConverter.Instance}, ConverterParameter=1}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                                                    <Button Grid.Column="2" Background="Transparent" Padding="3" BorderThickness="0"
+                                                                            Command="{Binding $parent[views:MainWindow].((vm:MainWindowViewModel)DataContext).BottomPanel.CloseTerminalTabCommand}"
+                                                                            CommandParameter="{Binding}"
+                                                                            ToolTip.Tip="Kill Terminal">
+                                                                        <Path Data="{StaticResource IconClose}" Width="8" Height="8" Fill="#858585" Stretch="Uniform" />
+                                                                    </Button>
+                                                                </Grid>
+                                                            </Button>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </ScrollViewer>
+                                        </Grid>
+                                    </Border>
+                                </Grid>
+
+                                <!-- 2. Build Output View -->
+                                <ScrollViewer Margin="8"
+                                              IsVisible="{Binding BottomPanel.SelectedTabIndex, Converter={x:Static views:TabWeightConverter.Instance}, ConverterParameter=1}">
+                                    <TextBlock Text="{Binding BottomPanel.BuildOutput}" 
+                                               FontFamily="Cascadia Code, Consolas, Courier New, monospace" 
+                                               FontSize="12" 
+                                               Foreground="#9CDCFE" />
+                                </ScrollViewer>
+
+                                <!-- 3. Problems View -->
+                                <ListBox ItemsSource="{Binding BottomPanel.Problems}" 
+                                         Background="Transparent" 
+                                         Margin="4"
+                                         IsVisible="{Binding BottomPanel.SelectedTabIndex, Converter={x:Static views:TabWeightConverter.Instance}, ConverterParameter=2}">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type vm:ProblemItem}">
+                                            <Grid ColumnDefinitions="Auto,*,Auto" Margin="4,2">
+                                                <Path Grid.Column="0" Data="{StaticResource IconError}" Width="12" Height="12" Fill="{Binding Color}" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Message}" FontSize="13" Foreground="#D4D4D4" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="2" Text="{Binding File, StringFormat='{}{0}'}" FontSize="11" Foreground="#888888" VerticalAlignment="Center" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
                             </Grid>
-                        </Border>
-                    </Grid>
+                        </Grid>
+                    </Border>
                 </Grid>
-            </Grid>
+                </Grid>
 
             <!-- ========================================================================= -->
             <!-- 3. STATUS BAR (22px)                                                      -->

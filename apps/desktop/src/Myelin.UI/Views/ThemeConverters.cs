@@ -279,4 +279,140 @@ namespace Myelin.UI.Views
 
         public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotImplementedException();
     }
+
+    public class TerminalTabActiveBackgroundConverter : IValueConverter
+    {
+        public static readonly TerminalTabActiveBackgroundConverter Instance = new();
+        private static readonly IBrush ActiveBrush = new ImmutableSolidColorBrush(Color.Parse("#04395E"));
+        private static readonly IBrush InactiveBrush = new ImmutableSolidColorBrush(Colors.Transparent);
+
+        public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        {
+            return value is true ? ActiveBrush : InactiveBrush;
+        }
+
+        public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotImplementedException();
+    }
+
+    public class PanelMaximizeIconConverter : IValueConverter
+    {
+        public static readonly PanelMaximizeIconConverter Instance = new();
+
+        public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        {
+            if (Application.Current != null && Application.Current.Resources.TryGetResource(value is true ? "IconCollapse" : "IconExpand", null, out var res))
+            {
+                return res;
+            }
+            return null;
+        }
+
+        public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotImplementedException();
+    }
+
+    public class PanelRowHeightConverter : IValueConverter
+    {
+        public static readonly PanelRowHeightConverter Instance = new();
+
+        public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        {
+            if (value is true)
+            {
+                return new GridLength(260, GridUnitType.Pixel);
+            }
+            return new GridLength(0, GridUnitType.Pixel);
+        }
+
+        public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotImplementedException();
+    }
+
+    public class SidebarColumnWidthConverter : IValueConverter
+    {
+        public static readonly SidebarColumnWidthConverter Instance = new();
+
+        public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        {
+            if (value is true)
+            {
+                return new GridLength(260, GridUnitType.Pixel);
+            }
+            return new GridLength(0, GridUnitType.Pixel);
+        }
+
+        public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotImplementedException();
+    }
+
+    public class GitStatusBrushConverter : IValueConverter
+    {
+        public static readonly GitStatusBrushConverter Instance = new();
+        private static readonly IBrush GreenBrush = new ImmutableSolidColorBrush(Color.Parse("#89D185"));
+        private static readonly IBrush YellowBrush = new ImmutableSolidColorBrush(Color.Parse("#CCA700"));
+        private static readonly IBrush RedBrush = new ImmutableSolidColorBrush(Color.Parse("#F14C4C"));
+        private static readonly IBrush GrayBrush = new ImmutableSolidColorBrush(Color.Parse("#888888"));
+
+        public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        {
+            if (value is GitFileStatus status)
+            {
+                return status switch
+                {
+                    GitFileStatus.Untracked => GreenBrush,
+                    GitFileStatus.Added => GreenBrush,
+                    GitFileStatus.Modified => YellowBrush,
+                    GitFileStatus.Renamed => YellowBrush,
+                    GitFileStatus.Copied => YellowBrush,
+                    GitFileStatus.Deleted => RedBrush,
+                    GitFileStatus.Conflicted => RedBrush,
+                    _ => GrayBrush
+                };
+            }
+            return GrayBrush;
+        }
+
+        public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotImplementedException();
+    }
+
+    public class BoolToChevronIconConverter : IValueConverter
+    {
+        public static readonly BoolToChevronIconConverter Instance = new();
+
+        public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        {
+            if (Application.Current != null && Application.Current.Resources.TryGetResource(value is true ? "IconChevronDown" : "IconChevronRight", null, out var res))
+            {
+                return res;
+            }
+            return null;
+        }
+
+        public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotImplementedException();
+    }
+
+    public class BoolToToggleBackgroundConverter : IValueConverter
+    {
+        public static readonly BoolToToggleBackgroundConverter Instance = new();
+        private static readonly IBrush ActiveBrush = new ImmutableSolidColorBrush(Color.Parse("#04395E"));
+        private static readonly IBrush InactiveBrush = new ImmutableSolidColorBrush(Colors.Transparent);
+
+        public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        {
+            return value is true ? ActiveBrush : InactiveBrush;
+        }
+
+        public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotImplementedException();
+    }
+
+    public class BoolToToggleBorderBrushConverter : IValueConverter
+    {
+        public static readonly BoolToToggleBorderBrushConverter Instance = new();
+        private static readonly IBrush ActiveBrush = new ImmutableSolidColorBrush(Color.Parse("#0078D4"));
+        private static readonly IBrush InactiveBrush = new ImmutableSolidColorBrush(Colors.Transparent);
+
+        public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        {
+            return value is true ? ActiveBrush : InactiveBrush;
+        }
+
+        public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotImplementedException();
+    }
 }

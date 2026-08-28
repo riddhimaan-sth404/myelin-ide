@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Myelin.Core\Myelin.Core.csproj" />
+    <ProjectReference Include="..\..\src\Myelin.UI\Myelin.UI.csproj" />
   </ItemGroup>
 
   <ItemGroup>

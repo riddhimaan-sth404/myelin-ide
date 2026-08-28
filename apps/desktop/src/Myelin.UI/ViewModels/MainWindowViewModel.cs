@@ -30,6 +30,9 @@ namespace Myelin.UI.ViewModels
         private bool _isSidebarOpen = true;
 
         [ObservableProperty]
+        private double _sidebarWidth = 260.0;
+
+        [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(ActiveSidebarTitle))]
         private int _activeActivityIndex = 0; // 0 = Explorer, 1 = Search, 2 = Git, 3 = Settings
 
@@ -59,6 +62,15 @@ namespace Myelin.UI.ViewModels
         private BottomPanelViewModel _bottomPanel = new();
 
         [ObservableProperty]
+        private SourceControlViewModel _sourceControl = new();
+
+        [ObservableProperty]
+        private WorkspaceSearchViewModel _search = new();
+
+        [ObservableProperty]
+        private SettingsViewModel _settings = new();
+
+        [ObservableProperty]
         private CommandPaletteViewModel _commandPalette;
 
         [ObservableProperty]
@@ -85,6 +97,9 @@ namespace Myelin.UI.ViewModels
         {
             _workspace = new NativeWorkspace();
             _commandPalette = new CommandPaletteViewModel(this);
+
+            SourceControl.Initialize(WorkspaceRoot, path => OpenFile(path));
+            Search.Initialize(WorkspaceRoot, (path, line) => OpenFile(path, line));
 
             RegisterCommands();
 
@@ -139,12 +154,40 @@ namespace Myelin.UI.ViewModels
             WorkspaceRoot = path;
             RootNode = NativeWorkspace.ScanDirectory(path, 4);
             BottomPanel.SetWorkingDirectory(path);
+            SourceControl.SetWorkspaceRoot(path);
+            Search.SetWorkspaceRoot(path);
+            GitBranch = SourceControl.CurrentBranch;
             StatusMessage = $"Workspace: {Path.GetFileName(path)}";
             IsSidebarOpen = true;
             ActiveActivityIndex = 0;
         }
 
-        public void OpenFile(string path)
+        [RelayCommand]
+        public void NewFolder()
+        {
+            if (string.IsNullOrEmpty(WorkspaceRoot) || !Directory.Exists(WorkspaceRoot)) return;
+
+            string baseName = "new_folder";
+            string target = Path.Combine(WorkspaceRoot, baseName);
+            int counter = 1;
+            while (Directory.Exists(target))
+            {
+                target = Path.Combine(WorkspaceRoot, $"{baseName}_{counter++}");
+            }
+
+            try
+            {
+                Directory.CreateDirectory(target);
+                RefreshExplorer();
+                StatusMessage = $"Created folder {Path.GetFileName(target)}";
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Failed to create folder: {ex.Message}";
+            }
+        }
+
+        public void OpenFile(string path, int line = 1)
         {
             if (!File.Exists(path)) return;
 
@@ -153,6 +196,7 @@ namespace Myelin.UI.ViewModels
                 if (tab.FilePath == path)
                 {
                     SelectedTab = tab;
+                    CursorLine = (nuint)Math.Max(1, line);
                     return;
                 }
             }
@@ -163,6 +207,7 @@ namespace Myelin.UI.ViewModels
                 var tab = new DocumentTabViewModel(docId, path);
                 Tabs.Add(tab);
                 SelectedTab = tab;
+                CursorLine = (nuint)Math.Max(1, line);
                 UpdateStatus();
             }
         }
@@ -235,6 +280,7 @@ namespace Myelin.UI.ViewModels
                 _workspace.Save(tab.DocId);
                 tab.IsDirty = false;
                 StatusMessage = $"Saved {tab.Title}";
+                _ = SourceControl.RefreshStatusAsync();
             }
         }
 
@@ -249,6 +295,7 @@ namespace Myelin.UI.ViewModels
                 tab.Title = Path.GetFileName(newPath);
                 tab.IsDirty = false;
                 StatusMessage = $"Saved {tab.Title}";
+                _ = SourceControl.RefreshStatusAsync();
             }
         }
 
@@ -269,6 +316,15 @@ namespace Myelin.UI.ViewModels
             {
                 _workspace.Redo(SelectedTab.DocId);
                 UpdateStatus();
+            }
+        }
+
+        [RelayCommand]
+        public void SelectTab(DocumentTabViewModel tab)
+        {
+            if (tab != null)
+            {
+                SelectedTab = tab;
             }
         }
 
