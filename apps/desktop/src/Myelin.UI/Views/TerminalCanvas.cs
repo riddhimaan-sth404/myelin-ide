@@ -1284,6 +1284,14 @@ namespace Myelin.UI.Views
                 return;
             }
 
+            // Middle Click in Terminal: Paste from Clipboard
+            if (props.IsMiddleButtonPressed)
+            {
+                await ExecutePasteAsync();
+                e.Handled = true;
+                return;
+            }
+
             if (e.ClickCount == 2)
             {
                 // Double click: select word

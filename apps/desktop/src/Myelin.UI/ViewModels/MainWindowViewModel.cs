@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 using Myelin.Core;
 using Myelin.Core.Commands;
 using Myelin.Core.Models;
+using Myelin.Core.Services;
 
 namespace Myelin.UI.ViewModels
 {
@@ -19,6 +20,9 @@ namespace Myelin.UI.ViewModels
 
         [ObservableProperty]
         private FileNode? _rootNode;
+
+        [ObservableProperty]
+        private FileNode? _selectedNode;
 
         [ObservableProperty]
         private ObservableCollection<DocumentTabViewModel> _tabs = new();
@@ -34,13 +38,16 @@ namespace Myelin.UI.ViewModels
 
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(ActiveSidebarTitle))]
-        private int _activeActivityIndex = 0; // 0 = Explorer, 1 = Search, 2 = Git, 3 = Settings
+        private int _activeActivityIndex = 0; // 0 = Explorer, 1 = Search, 2 = Git, 3 = Settings, 4 = Extensions, 5 = Run & Debug, 6 = Remote Explorer
 
         public string ActiveSidebarTitle => ActiveActivityIndex switch
         {
             1 => "SEARCH",
             2 => "SOURCE CONTROL",
             3 => "SETTINGS",
+            4 => "EXTENSIONS",
+            5 => "RUN AND DEBUG",
+            6 => "REMOTE EXPLORER",
             _ => "EXPLORER"
         };
 
@@ -68,6 +75,15 @@ namespace Myelin.UI.ViewModels
         private WorkspaceSearchViewModel _search = new();
 
         [ObservableProperty]
+        private ExtensionsViewModel _extensions = new();
+
+        [ObservableProperty]
+        private RemoteExplorerViewModel _remoteExplorer = new();
+
+        [ObservableProperty]
+        private RunAndDebugViewModel _debug = new();
+
+        [ObservableProperty]
         private SettingsViewModel _settings = new();
 
         [ObservableProperty]
@@ -78,6 +94,21 @@ namespace Myelin.UI.ViewModels
 
         [ObservableProperty]
         private string _gitBranch = "main";
+
+        [ObservableProperty]
+        private bool _isLiveServerRunning;
+
+        [ObservableProperty]
+        private string _liveServerStatusText = "Go Live";
+
+        [ObservableProperty]
+        private bool _isLocalServerRunning;
+
+        [ObservableProperty]
+        private string _localServerStatusText = "Host Server";
+
+        [ObservableProperty]
+        private string _activeLanguageServerText = "LSP Ready";
 
         [ObservableProperty]
         private nuint _cursorLine = 1;
@@ -100,12 +131,102 @@ namespace Myelin.UI.ViewModels
 
             SourceControl.Initialize(WorkspaceRoot, path => OpenFile(path));
             Search.Initialize(WorkspaceRoot, (path, line) => OpenFile(path, line));
+            Extensions.RequestOpenExtensionTab += (extItem, readme) => OpenExtensionTab(extItem, readme);
+            Debug.Initialize(WorkspaceRoot);
+            Debug.RequestNavigateToFile += (path, line) => OpenFile(path, (int)line);
+            RemoteExplorer.RequestOpenFile += path => OpenFile(path);
+            RemoteExplorer.RequestLaunchRemoteTerminal += (cmd, title) =>
+            {
+                BottomPanel.IsOpen = true;
+                BottomPanel.SelectedTabIndex = 0;
+                BottomPanel.CreateTerminalTab();
+                BottomPanel.TerminalSession?.Write(cmd + "\r");
+            };
+
+            // Hook Live Server & Local Server events
+            LiveServerService.Instance.ServerStateChanged += (running, info) =>
+            {
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    IsLiveServerRunning = running;
+                    LiveServerStatusText = running ? $"Port: {LiveServerService.Instance.ServerPort}" : "Go Live";
+                    StatusMessage = running ? $"Live Server running on {info}" : "Live Server stopped";
+                });
+            };
+
+            LocalServerRunnerService.Instance.ServerStatusChanged += (running, url, info) =>
+            {
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    IsLocalServerRunning = running;
+                    LocalServerStatusText = running ? "Running" : "Host Server";
+                    StatusMessage = info ?? (running ? "Server running" : "Server stopped");
+                    if (running && !string.IsNullOrEmpty(url))
+                    {
+                        OpenWebPreviewTab(url, $"{LocalServerRunnerService.Instance.CurrentServerType} Server");
+                    }
+                });
+            };
+
+            LanguageServerService.Instance.ServerStatusChanged += (lang, status) =>
+            {
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    ActiveLanguageServerText = $"{lang}: {status}";
+                });
+            };
 
             RegisterCommands();
+
+            // Wire Extension Host GUI interaction bridge
+            var host = NodeExtensionHostService.Instance;
+            host.WebviewPanelCreated += (panelId, viewType, title) =>
+            {
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    var tab = new DocumentTabViewModel(panelId, title);
+                    Tabs.Add(tab);
+                    SelectedTab = tab;
+                });
+            };
+
+            host.WebviewPanelDisposed += (panelId) =>
+            {
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    for (int i = Tabs.Count - 1; i >= 0; i--)
+                    {
+                        if (Tabs[i].WebviewPanelId == panelId)
+                        {
+                            CloseTab(Tabs[i]);
+                        }
+                    }
+                });
+            };
+
+            host.StatusBarUpdated += (msg) =>
+            {
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    if (!string.IsNullOrEmpty(msg)) StatusMessage = msg;
+                });
+            };
+
+            host.MessageReceived += (type, msg) =>
+            {
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    StatusMessage = $"[{type}] {msg}";
+                });
+            };
+
+            // Start Node.js extension host in background
+            _ = host.StartAsync(WorkspaceRoot);
 
             // Open initial scratch buffer
             ulong initialDoc = _workspace.OpenScratch("fn main() {\n    println!(\"Hello from Myelin!\");\n}\n");
             var initialTab = new DocumentTabViewModel(initialDoc, "main.rs");
+            initialTab.IsSelected = true;
             Tabs.Add(initialTab);
             SelectedTab = initialTab;
         }
@@ -113,27 +234,142 @@ namespace Myelin.UI.ViewModels
         private void RegisterCommands()
         {
             var reg = CommandRegistry.Instance;
-            reg.Register("file.new", "File", "New File", "Ctrl+N", () => NewFile());
-            reg.Register("file.open", "File", "Open File...", "Ctrl+O", () => OpenFilePrompt());
-            reg.Register("file.open_folder", "File", "Open Folder...", "Ctrl+Shift+O", () => OpenFolderPrompt());
-            reg.Register("file.save", "File", "Save", "Ctrl+S", () => SaveCurrent());
 
-            reg.Register("view.toggle_sidebar", "View", "Toggle Primary Side Bar", "Ctrl+B", () => ToggleSidebar());
-            reg.Register("view.toggle_terminal", "View", "Toggle Terminal", "Ctrl+J", () => ToggleTerminal());
-            reg.Register("view.command_palette", "View", "Command Palette...", "Ctrl+Shift+P", () => OpenCommandPalette());
-            reg.Register("view.quick_open", "View", "Go to File...", "Ctrl+P", () => OpenQuickFile());
+            // File commands
+            reg.Register("file.new", "File", "New File", "Ctrl+N", () => CreateFile(), "IconNewFile");
+            reg.Register("file.open", "File", "Open File...", "Ctrl+O", () => OpenFilePrompt(), "IconFile");
+            reg.Register("file.open_folder", "File", "Open Folder...", "Ctrl+Shift+O", () => OpenFolderPrompt(), "IconFolderOpened");
+            reg.Register("file.save", "File", "Save", "Ctrl+S", () => SaveCurrent(), "IconFile");
+            reg.Register("file.close", "File", "Close Editor", "Ctrl+W", () => { if (SelectedTab != null) CloseTab(SelectedTab); }, "IconClose");
 
-            reg.Register("edit.undo", "Edit", "Undo", "Ctrl+Z", () => UndoCurrent());
-            reg.Register("edit.redo", "Edit", "Redo", "Ctrl+Y", () => RedoCurrent());
+            // View commands
+            reg.Register("view.explorer", "View", "Show Explorer", "Ctrl+Shift+E", () => SelectActivity(0), "IconExplorer");
+            reg.Register("view.search", "View", "Find in Files", "Ctrl+Shift+F", () => SelectActivity(1), "IconSearch");
+            reg.Register("view.source_control", "View", "Show Source Control", "Ctrl+Shift+G", () => SelectActivity(2), "IconSourceControl");
+            reg.Register("view.settings", "View", "Show Settings", "Ctrl+,", () => SelectActivity(3), "IconSettings");
+            reg.Register("view.extensions", "View", "Show Extensions", "Ctrl+Shift+X", () => SelectActivity(4), "IconExtensions");
+            reg.Register("view.run_and_debug", "View", "Show Run and Debug", "Ctrl+Shift+D", () => SelectActivity(5), "IconDebug");
+            reg.Register("view.remote_explorer", "View", "Show Remote Explorer", "", () => SelectActivity(6), "IconRemoteExplorer");
+            reg.Register("view.toggle_sidebar", "View", "Toggle Primary Side Bar", "Ctrl+B", () => ToggleSidebar(), "IconCollapse");
+            reg.Register("view.toggle_terminal", "View", "Toggle Terminal", "Ctrl+J", () => ToggleTerminal(), "IconTerminal");
+            reg.Register("view.problems", "View", "Show Problems Panel", "Ctrl+Shift+M", () => { BottomPanel.SelectedTabIndex = 2; BottomPanel.IsOpen = true; }, "IconWarning");
+            reg.Register("view.debug_console", "View", "Show Debug Console", "Ctrl+Shift+Y", () => { BottomPanel.SelectedTabIndex = 3; BottomPanel.IsOpen = true; }, "IconDebug");
+            reg.Register("view.command_palette", "View", "Command Palette...", "Ctrl+Shift+P", () => OpenCommandPalette(), "IconCommand");
+            reg.Register("view.quick_open", "View", "Go to File...", "Ctrl+P", () => OpenQuickFile(), "IconSearch");
 
-            reg.Register("cargo.build", "Cargo", "Build Workspace", "Ctrl+Shift+B", () => RunCargoTask("build"));
-            reg.Register("cargo.check", "Cargo", "Check Workspace", "", () => RunCargoTask("check"));
-            reg.Register("cargo.test", "Cargo", "Test Workspace", "", () => RunCargoTask("test"));
-            reg.Register("cargo.run", "Cargo", "Run Project", "F5", () => RunCargoTask("run"));
+            // Edit commands
+            reg.Register("edit.undo", "Edit", "Undo", "Ctrl+Z", () => UndoCurrent(), "IconDiscard");
+            reg.Register("edit.redo", "Edit", "Redo", "Ctrl+Y", () => RedoCurrent(), "IconSync");
+
+            // Debug commands
+            reg.Register("debug.start", "Debug", "Start Debugging", "F5", () => _ = Debug.StartDebugging(), "IconPlay");
+            reg.Register("debug.pause", "Debug", "Pause Execution", "F6", () => _ = Debug.Pause(), "IconPause");
+            reg.Register("debug.step_over", "Debug", "Step Over", "F10", () => _ = Debug.StepOver(), "IconStepOver");
+            reg.Register("debug.step_into", "Debug", "Step Into", "F11", () => _ = Debug.StepInto(), "IconStepInto");
+            reg.Register("debug.step_out", "Debug", "Step Out", "Shift+F11", () => _ = Debug.StepOut(), "IconStepOut");
+            reg.Register("debug.restart", "Debug", "Restart Debugging", "Ctrl+Shift+F5", () => _ = Debug.Restart(), "IconRestart");
+            reg.Register("debug.stop", "Debug", "Stop Debugging", "Shift+F5", () => _ = Debug.Stop(), "IconStop");
+
+            // Remote commands
+            reg.Register("remote.connect_ssh", "Remote", "Connect to SSH Host...", "", () => { SelectActivity(6); RemoteExplorer.OpenAddTargetDialogCommand.Execute(null); }, "IconSsh");
+            reg.Register("remote.forward_port", "Remote", "Forward a Port...", "", () => { SelectActivity(6); RemoteExplorer.OpenPortForwardDialogCommand.Execute(null); }, "IconServer");
+            reg.Register("remote.refresh", "Remote", "Refresh Targets", "", () => RemoteExplorer.RefreshCollections(), "IconRefresh");
+
+            // Git / Source control commands
+            reg.Register("git.refresh", "Git", "Refresh Status", "", () => _ = SourceControl.RefreshStatusAsync(), "IconRefresh");
+            reg.Register("git.stage_all", "Git", "Stage All Changes", "", () => _ = SourceControl.StageAllAsync(), "IconPlus");
+            reg.Register("git.unstage_all", "Git", "Unstage All Changes", "", () => _ = SourceControl.UnstageAllAsync(), "IconMinus");
+            reg.Register("git.commit", "Git", "Commit Staged Changes", "", () => _ = SourceControl.CommitAsync(), "IconCheck");
+
+            // Server & Web commands
+            reg.Register("server.host_local", "Server", "Host Local Server (Flask/Node/FastAPI/Live)", "F9", () => _ = HostLocalServer(), "IconPlay");
+            reg.Register("server.stop_local", "Server", "Stop Hosted Local Server", "", () => StopLocalServer(), "IconStop");
+            reg.Register("liveserver.toggle", "Live Server", "Toggle Live Server (Port 5500)", "", () => _ = ToggleLiveServer(), "IconLink");
+            reg.Register("markdown.preview", "Markdown", "Open Preview to the Side", "Ctrl+Shift+V", () => OpenMarkdownPreview(), "IconExplorer");
+
+            // Cargo commands
+            reg.Register("cargo.build", "Cargo", "Build Workspace", "Ctrl+Shift+B", () => RunCargoTask("build"), "IconPlay");
+            reg.Register("cargo.check", "Cargo", "Check Workspace", "", () => RunCargoTask("check"), "IconCheck");
+            reg.Register("cargo.test", "Cargo", "Test Workspace", "", () => RunCargoTask("test"), "IconDebug");
+            reg.Register("cargo.run", "Cargo", "Run Project", "F5", () => RunCargoTask("run"), "IconPlay");
+        }
+
+        [RelayCommand]
+        public async Task ToggleLiveServer()
+        {
+            if (LiveServerService.Instance.IsRunning)
+            {
+                LiveServerService.Instance.Stop();
+            }
+            else
+            {
+                string root = WorkspaceRoot ?? (SelectedTab?.FilePath != null ? Path.GetDirectoryName(SelectedTab.FilePath)! : Directory.GetCurrentDirectory());
+                bool ok = await LiveServerService.Instance.StartAsync(root);
+                if (ok)
+                {
+                    OpenWebPreviewTab(LiveServerService.Instance.ServerUrl, "Live Server :5500");
+                }
+            }
+        }
+
+        [RelayCommand]
+        public async Task HostLocalServer()
+        {
+            string root = WorkspaceRoot ?? (SelectedTab?.FilePath != null ? Path.GetDirectoryName(SelectedTab.FilePath)! : Directory.GetCurrentDirectory());
+            var result = await LocalServerRunnerService.Instance.StartLocalServerAsync(root);
+            StatusMessage = result.message;
+        }
+
+        [RelayCommand]
+        public void StopLocalServer()
+        {
+            LocalServerRunnerService.Instance.Stop();
+        }
+
+        [RelayCommand]
+        public void OpenMarkdownPreview(DocumentTabViewModel? tab = null)
+        {
+            tab ??= SelectedTab;
+            if (tab == null) return;
+
+            string content = "";
+            if (tab.IsTextDocument && tab.DocId != 0)
+            {
+                nuint lineCount = _workspace.GetLineCount(tab.DocId);
+                var lines = _workspace.GetVisibleLines(tab.DocId, 0, lineCount);
+                content = string.Join("\n", lines);
+            }
+            else if (!string.IsNullOrEmpty(tab.FilePath) && File.Exists(tab.FilePath))
+            {
+                content = File.ReadAllText(tab.FilePath);
+            }
+
+            var previewTab = DocumentTabViewModel.CreateMarkdownPreview(content, tab.Title);
+            Tabs.Add(previewTab);
+            SelectedTab = previewTab;
+        }
+
+        public void OpenWebPreviewTab(string url, string title = "Web Preview")
+        {
+            foreach (var existing in Tabs)
+            {
+                if (existing.IsWebPreview)
+                {
+                    existing.WebPreviewUrl = url;
+                    existing.Title = title;
+                    SelectedTab = existing;
+                    return;
+                }
+            }
+
+            var tab = DocumentTabViewModel.CreateWebPreview(url, title);
+            Tabs.Add(tab);
+            SelectedTab = tab;
         }
 
         public event Action? RequestOpenFile;
         public event Action? RequestOpenFolder;
+        public event Action<string>? RequestSetClipboard;
 
         [RelayCommand]
         public void OpenFilePrompt()
@@ -160,31 +396,234 @@ namespace Myelin.UI.ViewModels
             StatusMessage = $"Workspace: {Path.GetFileName(path)}";
             IsSidebarOpen = true;
             ActiveActivityIndex = 0;
+            _ = NodeExtensionHostService.Instance.StartAsync(path);
+        }
+
+        [RelayCommand]
+        public void CreateFile(object? param = null)
+        {
+            string? targetDir = null;
+            if (param is FileNode node)
+            {
+                targetDir = node.IsDirectory ? node.Path : Path.GetDirectoryName(node.Path);
+            }
+            else if (SelectedNode != null)
+            {
+                targetDir = SelectedNode.IsDirectory ? SelectedNode.Path : Path.GetDirectoryName(SelectedNode.Path);
+            }
+            else if (!string.IsNullOrEmpty(WorkspaceRoot) && Directory.Exists(WorkspaceRoot))
+            {
+                targetDir = WorkspaceRoot;
+            }
+
+            if (!string.IsNullOrEmpty(targetDir) && Directory.Exists(targetDir))
+            {
+                string baseName = "untitled.txt";
+                string target = Path.Combine(targetDir, baseName);
+                int counter = 1;
+                while (File.Exists(target))
+                {
+                    target = Path.Combine(targetDir, $"untitled_{counter++}.txt");
+                }
+
+                try
+                {
+                    File.WriteAllText(target, "");
+                    RefreshExplorer();
+                    OpenFile(target);
+                    StatusMessage = $"Created file {Path.GetFileName(target)}";
+                }
+                catch (Exception ex)
+                {
+                    StatusMessage = $"Failed to create file: {ex.Message}";
+                }
+            }
+            else
+            {
+                NewFile();
+            }
+        }
+
+        [RelayCommand]
+        public void CreateFolder(object? param = null)
+        {
+            string? targetDir = null;
+            if (param is FileNode node)
+            {
+                targetDir = node.IsDirectory ? node.Path : Path.GetDirectoryName(node.Path);
+            }
+            else if (SelectedNode != null)
+            {
+                targetDir = SelectedNode.IsDirectory ? SelectedNode.Path : Path.GetDirectoryName(SelectedNode.Path);
+            }
+            else if (!string.IsNullOrEmpty(WorkspaceRoot) && Directory.Exists(WorkspaceRoot))
+            {
+                targetDir = WorkspaceRoot;
+            }
+
+            if (!string.IsNullOrEmpty(targetDir) && Directory.Exists(targetDir))
+            {
+                string baseName = "new_folder";
+                string target = Path.Combine(targetDir, baseName);
+                int counter = 1;
+                while (Directory.Exists(target))
+                {
+                    target = Path.Combine(targetDir, $"{baseName}_{counter++}");
+                }
+
+                try
+                {
+                    Directory.CreateDirectory(target);
+                    RefreshExplorer();
+                    StatusMessage = $"Created folder {Path.GetFileName(target)}";
+                }
+                catch (Exception ex)
+                {
+                    StatusMessage = $"Failed to create folder: {ex.Message}";
+                }
+            }
         }
 
         [RelayCommand]
         public void NewFolder()
         {
-            if (string.IsNullOrEmpty(WorkspaceRoot) || !Directory.Exists(WorkspaceRoot)) return;
+            CreateFolder(null);
+        }
 
-            string baseName = "new_folder";
-            string target = Path.Combine(WorkspaceRoot, baseName);
-            int counter = 1;
-            while (Directory.Exists(target))
-            {
-                target = Path.Combine(WorkspaceRoot, $"{baseName}_{counter++}");
-            }
+        [RelayCommand]
+        public void DeleteNode(object? param = null)
+        {
+            FileNode? node = param as FileNode ?? SelectedNode;
+            if (node == null || string.IsNullOrEmpty(node.Path)) return;
 
             try
             {
-                Directory.CreateDirectory(target);
+                if (node.IsDirectory)
+                {
+                    if (Directory.Exists(node.Path))
+                    {
+                        Directory.Delete(node.Path, true);
+                    }
+                }
+                else
+                {
+                    if (File.Exists(node.Path))
+                    {
+                        for (int i = Tabs.Count - 1; i >= 0; i--)
+                        {
+                            if (Tabs[i].FilePath == node.Path)
+                            {
+                                CloseTab(Tabs[i]);
+                            }
+                        }
+                        File.Delete(node.Path);
+                    }
+                }
+
                 RefreshExplorer();
-                StatusMessage = $"Created folder {Path.GetFileName(target)}";
+                StatusMessage = $"Deleted {node.Name}";
+                _ = SourceControl.RefreshStatusAsync();
             }
             catch (Exception ex)
             {
-                StatusMessage = $"Failed to create folder: {ex.Message}";
+                StatusMessage = $"Failed to delete {node.Name}: {ex.Message}";
             }
+        }
+
+        [RelayCommand]
+        public void RevealInExplorer(object? param = null)
+        {
+            string? targetPath = null;
+            if (param is FileNode node)
+            {
+                targetPath = node.Path;
+            }
+            else if (param is string p && !string.IsNullOrEmpty(p))
+            {
+                targetPath = p;
+            }
+            else if (SelectedNode != null)
+            {
+                targetPath = SelectedNode.Path;
+            }
+            else
+            {
+                targetPath = WorkspaceRoot;
+            }
+
+            if (string.IsNullOrEmpty(targetPath)) return;
+
+            try
+            {
+                if (OperatingSystem.IsWindows())
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = "explorer.exe",
+                        Arguments = $"/select,\"{targetPath}\"",
+                        UseShellExecute = true
+                    });
+                }
+                else if (OperatingSystem.IsMacOS())
+                {
+                    System.Diagnostics.Process.Start("open", $"-R \"{targetPath}\"");
+                }
+                else if (OperatingSystem.IsLinux())
+                {
+                    System.Diagnostics.Process.Start("xdg-open", Path.GetDirectoryName(targetPath) ?? targetPath);
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Failed to reveal in explorer: {ex.Message}";
+            }
+        }
+
+        [RelayCommand]
+        public void CopyPath(object? param = null)
+        {
+            string? targetPath = (param as FileNode)?.Path ?? SelectedNode?.Path ?? WorkspaceRoot;
+            if (!string.IsNullOrEmpty(targetPath))
+            {
+                RequestSetClipboard?.Invoke(targetPath);
+                StatusMessage = "Copied path to clipboard";
+            }
+        }
+
+        [RelayCommand]
+        public void CopyRelativePath(object? param = null)
+        {
+            string? targetPath = (param as FileNode)?.Path ?? SelectedNode?.Path;
+            if (!string.IsNullOrEmpty(targetPath) && !string.IsNullOrEmpty(WorkspaceRoot))
+            {
+                string rel = Path.GetRelativePath(WorkspaceRoot, targetPath);
+                RequestSetClipboard?.Invoke(rel);
+                StatusMessage = "Copied relative path to clipboard";
+            }
+            else if (!string.IsNullOrEmpty(targetPath))
+            {
+                RequestSetClipboard?.Invoke(targetPath);
+                StatusMessage = "Copied path to clipboard";
+            }
+        }
+
+        [RelayCommand]
+        public void CollapseAll()
+        {
+            RefreshExplorer();
+            StatusMessage = "Collapsed all folders";
+        }
+
+        [RelayCommand]
+        public void CloseAllTabs()
+        {
+            for (int i = Tabs.Count - 1; i >= 0; i--)
+            {
+                _workspace.CloseDocument(Tabs[i].DocId);
+            }
+            Tabs.Clear();
+            SelectedTab = null;
+            UpdateStatus();
         }
 
         public void OpenFile(string path, int line = 1)
@@ -210,6 +649,23 @@ namespace Myelin.UI.ViewModels
                 CursorLine = (nuint)Math.Max(1, line);
                 UpdateStatus();
             }
+        }
+
+        public void OpenExtensionTab(ExtensionItemViewModel item, string readme)
+        {
+            foreach (var existing in Tabs)
+            {
+                if (existing.IsExtensionDetails && existing.ExtensionItem?.Id == item.Id)
+                {
+                    existing.ReadmeText = readme;
+                    SelectedTab = existing;
+                    return;
+                }
+            }
+
+            var tab = new DocumentTabViewModel(item, readme);
+            Tabs.Add(tab);
+            SelectedTab = tab;
         }
 
         [RelayCommand]
@@ -588,6 +1044,8 @@ namespace Myelin.UI.ViewModels
 
         partial void OnSelectedTabChanged(DocumentTabViewModel? oldValue, DocumentTabViewModel? newValue)
         {
+            if (oldValue != null) oldValue.IsSelected = false;
+            if (newValue != null) newValue.IsSelected = true;
             UpdateStatus();
         }
 
@@ -620,6 +1078,7 @@ namespace Myelin.UI.ViewModels
 
         public void Dispose()
         {
+            NodeExtensionHostService.Instance.Dispose();
             BottomPanel.Dispose();
             _workspace.Dispose();
         }

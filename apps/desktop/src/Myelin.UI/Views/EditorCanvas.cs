@@ -12,6 +12,7 @@ using Avalonia.Media.Immutable;
 using Avalonia.Threading;
 using Myelin.Core;
 using Myelin.Core.Models;
+using Myelin.Core.Services;
 using Myelin.UI.ViewModels;
 
 namespace Myelin.UI.Views
@@ -70,6 +71,7 @@ namespace Myelin.UI.Views
         private double _scrollThumbDragStartY;
         private nuint _scrollThumbDragStartOffset;
         private bool _isScrollbarHovered;
+        private int? _hoveredGutterLine;
 
         private readonly Dictionary<Color, IBrush> _brushCache = new();
         private readonly IPen _gutterPen = new ImmutablePen(new ImmutableSolidColorBrush(Color.Parse("#333333")), 1);
@@ -193,6 +195,11 @@ namespace Myelin.UI.Views
                 InvalidateVisual();
             };
             _blinkTimer.Start();
+
+            DebuggerService.Instance.BreakpointsChanged += OnDebuggerVisualChanged;
+            DebuggerService.Instance.PausedOnFrame += OnDebuggerFrameChanged;
+            DebuggerService.Instance.StateChanged += OnDebuggerStateChanged;
+
             Focus();
         }
 
@@ -200,7 +207,15 @@ namespace Myelin.UI.Views
         {
             base.OnDetachedFromVisualTree(e);
             _blinkTimer?.Stop();
+
+            DebuggerService.Instance.BreakpointsChanged -= OnDebuggerVisualChanged;
+            DebuggerService.Instance.PausedOnFrame -= OnDebuggerFrameChanged;
+            DebuggerService.Instance.StateChanged -= OnDebuggerStateChanged;
         }
+
+        private void OnDebuggerVisualChanged() => Dispatcher.UIThread.Post(InvalidateVisual);
+        private void OnDebuggerFrameChanged(StackFrameItem? frame) => Dispatcher.UIThread.Post(InvalidateVisual);
+        private void OnDebuggerStateChanged(DebugState state) => Dispatcher.UIThread.Post(InvalidateVisual);
 
         private void RecalculateFontMetrics()
         {
@@ -553,7 +568,40 @@ namespace Myelin.UI.Views
                 return;
             }
 
-            // 3. Normal Left-Click / Multi-Click / Gutter Selection
+            // 3. Middle-Click: Position cursor and Paste from Clipboard
+            if (props.IsMiddleButtonPressed)
+            {
+                double gWidth = ComputeGutterWidth(totalLines);
+                double relX = point.X - (gWidth + 10) + _scrollXOffset;
+                int targetL = Math.Clamp((int)(point.Y / _lineHeight) + (int)_scrollLineOffset, 0, (int)(totalLines > 0 ? totalLines - 1 : 0));
+                string lineT = Workspace.GetLine(DocId, (nuint)targetL);
+                int targetC = Math.Min(HitTestColumn(lineT, relX), lineT.Length);
+                Workspace.SetCursor(DocId, (nuint)targetL, (nuint)targetC);
+
+                var topLevel = TopLevel.GetTopLevel(this);
+                if (topLevel?.Clipboard != null)
+                {
+                    _ = System.Threading.Tasks.Task.Run(async () =>
+                    {
+                        string? clipText = await Dispatcher.UIThread.InvokeAsync(async () => await topLevel.Clipboard.GetTextAsync());
+                        if (!string.IsNullOrEmpty(clipText))
+                        {
+                            await Dispatcher.UIThread.InvokeAsync(() =>
+                            {
+                                Workspace.InsertAtCursor(DocId, clipText);
+                                InvalidateVisual();
+                                (DataContext as MainWindowViewModel)?.UpdateStatus();
+                            });
+                        }
+                    });
+                }
+                InvalidateVisual();
+                (DataContext as MainWindowViewModel)?.UpdateStatus();
+                e.Handled = true;
+                return;
+            }
+
+            // 4. Normal Left-Click / Multi-Click / Gutter Selection
             double gutterWidth = ComputeGutterWidth(totalLines);
             double relativeX = point.X - (gutterWidth + 10) + _scrollXOffset;
             double relativeY = point.Y;
@@ -562,9 +610,21 @@ namespace Myelin.UI.Views
             string lineText = Workspace.GetLine(DocId, (nuint)targetLine);
             int targetCol = Math.Min(HitTestColumn(lineText, relativeX), lineText.Length);
 
-            // Gutter Click (Line Selection)
+            // Gutter Click (Breakpoint Toggle or Line Selection)
             if (point.X < gutterWidth)
             {
+                if (point.X <= 22)
+                {
+                    string filePath = (DataContext as MainWindowViewModel)?.SelectedTab?.FilePath ?? "";
+                    if (!string.IsNullOrEmpty(filePath))
+                    {
+                        DebuggerService.Instance.ToggleBreakpoint(filePath, (nuint)(targetLine + 1));
+                        InvalidateVisual();
+                        e.Handled = true;
+                        return;
+                    }
+                }
+
                 _mouseSelectionMode = MouseSelectionMode.Line;
                 _lineDragAnchorLine = (nuint)targetLine;
                 if (targetLine + 1 < (int)totalLines)
@@ -672,6 +732,27 @@ namespace Myelin.UI.Views
             {
                 _isScrollbarHovered = isOverScrollbar;
                 InvalidateVisual();
+            }
+
+            // Update Gutter Hover Breakpoint Ghost State
+            if (Workspace != null && DocId != 0)
+            {
+                nuint totalL = Workspace.GetLineCount(DocId);
+                double gW = ComputeGutterWidth(totalL);
+                if (point.X <= gW && point.X >= 0)
+                {
+                    int hLine = (int)(point.Y / _lineHeight) + (int)_scrollLineOffset;
+                    if (_hoveredGutterLine != hLine && hLine >= 0 && (nuint)hLine < totalL)
+                    {
+                        _hoveredGutterLine = hLine;
+                        InvalidateVisual();
+                    }
+                }
+                else if (_hoveredGutterLine != null)
+                {
+                    _hoveredGutterLine = null;
+                    InvalidateVisual();
+                }
             }
 
             // Handle Text Selection Dragging
@@ -1261,6 +1342,14 @@ namespace Myelin.UI.Views
             var unfocusedCursorBrush = GetCachedBrush(Color.Parse("#404040"));
             var selectionBrush = GetCachedBrush(Color.Parse("#264F78"));
             var cursorLinePen = new Pen(GetCachedBrush(Color.Parse("#2A2D2E")), 1);
+            var breakpointBrush = GetCachedBrush(Color.Parse("#E51400"));
+            var pausedLineBrush = GetCachedBrush(Color.Parse("#383515"));
+            var pausedLinePen = new Pen(GetCachedBrush(Color.Parse("#FFE66D")), 1);
+
+            string currentFilePath = (DataContext as MainWindowViewModel)?.SelectedTab?.FilePath ?? "";
+            bool isDebuggingPaused = DebuggerService.Instance.State == DebugState.Paused;
+            nuint? pausedLine = isDebuggingPaused && DebuggerService.Instance.CurrentFrame != null ? DebuggerService.Instance.CurrentFrame.Line : null;
+
             double textOriginX = gutterWidth + 10 - _scrollXOffset;
             double maxLineWidthSeen = 0;
 
@@ -1272,8 +1361,15 @@ namespace Myelin.UI.Views
                     nuint currentLineNumber = _scrollLineOffset + (nuint)i;
                     double y = i * _lineHeight;
 
+                    // Debugger Paused Line Highlight
+                    if (pausedLine.HasValue && (currentLineNumber + 1) == pausedLine.Value)
+                    {
+                        var pausedRect = new Rect(gutterWidth + 1, y + 0.5, Math.Max(0, bounds.Width - gutterWidth - ScrollbarWidth - 2), _lineHeight - 1.0);
+                        context.FillRectangle(pausedLineBrush, pausedRect);
+                        context.DrawRectangle(null, pausedLinePen, pausedRect);
+                    }
                     // Highlight active line (subtle outline kept within bounds)
-                    if (currentLineNumber == cursorLine && IsFocused)
+                    else if (currentLineNumber == cursorLine && IsFocused)
                     {
                         var lineRect = new Rect(gutterWidth + 1, y + 0.5, Math.Max(0, bounds.Width - gutterWidth - ScrollbarWidth - 2), _lineHeight - 1.0);
                         context.DrawRectangle(null, cursorLinePen, lineRect);
@@ -1347,12 +1443,52 @@ namespace Myelin.UI.Views
                 }
             }
 
-            // Gutter Line Numbers (Rendered outside text clip for crisp numbers)
+            // Gutter Breakpoints & Line Numbers (Rendered outside text clip for crisp numbers)
             for (int i = 0; i < styledLines.Count; i++)
             {
                 nuint currentLineNumber = _scrollLineOffset + (nuint)i;
                 double y = i * _lineHeight;
 
+                // 1. Breakpoint Dot or Ghost Breakpoint
+                var bp = !string.IsNullOrEmpty(currentFilePath) ? DebuggerService.Instance.GetBreakpoint(currentFilePath, currentLineNumber + 1) : null;
+                if (bp != null)
+                {
+                    if (!bp.IsEnabled)
+                    {
+                        var disabledPen = new Pen(breakpointBrush, 1.5);
+                        context.DrawEllipse(null, disabledPen, new Point(9, y + _lineHeight / 2.0), 4, 4);
+                    }
+                    else if (bp.Kind == BreakpointKind.Logpoint)
+                    {
+                        context.FillRectangle(breakpointBrush, new Rect(6, y + _lineHeight / 2.0 - 3.5, 7, 7));
+                    }
+                    else
+                    {
+                        context.DrawEllipse(breakpointBrush, null, new Point(9, y + _lineHeight / 2.0), 4.5, 4.5);
+                    }
+                }
+                else if (_hoveredGutterLine.HasValue && _hoveredGutterLine.Value == (int)currentLineNumber)
+                {
+                    var ghostBrush = GetCachedBrush(Color.FromArgb(100, 229, 20, 0));
+                    context.DrawEllipse(ghostBrush, null, new Point(9, y + _lineHeight / 2.0), 4.5, 4.5);
+                }
+
+                // 2. Debug Paused Indicator
+                if (pausedLine.HasValue && (currentLineNumber + 1) == pausedLine.Value)
+                {
+                    var arrowBrush = GetCachedBrush(Color.Parse("#FFE66D"));
+                    var geom = new StreamGeometry();
+                    using (var sgc = geom.Open())
+                    {
+                        sgc.BeginFigure(new Point(5, y + _lineHeight / 2.0 - 4), true);
+                        sgc.LineTo(new Point(11, y + _lineHeight / 2.0));
+                        sgc.LineTo(new Point(5, y + _lineHeight / 2.0 + 4));
+                        sgc.EndFigure(true);
+                    }
+                    context.DrawGeometry(arrowBrush, null, geom);
+                }
+
+                // 3. Line Number
                 string lineNumStr = (currentLineNumber + 1).ToString();
                 var formattedLineNum = new FormattedText(
                     lineNumStr,

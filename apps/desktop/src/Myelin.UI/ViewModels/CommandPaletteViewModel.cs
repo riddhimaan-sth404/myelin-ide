@@ -16,6 +16,7 @@ namespace Myelin.UI.ViewModels
         public string? Subtitle { get; set; }
         public string? Shortcut { get; set; }
         public string? FilePath { get; set; }
+        public string? IconKey { get; set; } = "IconCommand";
         public bool IsFile => !string.IsNullOrEmpty(FilePath);
         public Action? Action { get; set; }
     }
@@ -91,6 +92,7 @@ namespace Myelin.UI.ViewModels
                     {
                         Title = cmd.DisplayText,
                         Shortcut = cmd.Shortcut,
+                        IconKey = cmd.ResolveIconKey(),
                         Action = cmd.Action
                     });
                 }
@@ -112,6 +114,7 @@ namespace Myelin.UI.ViewModels
                         Title = file.Name,
                         Subtitle = file.Path,
                         FilePath = file.Path,
+                        IconKey = file.IsDirectory ? "IconFolder" : "IconFile",
                         Action = () => _mainVm.OpenFile(file.Path)
                     });
                 }

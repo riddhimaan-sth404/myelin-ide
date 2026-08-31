@@ -1,0 +1,81 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="using:Myelin.UI.Views"
+             x:Class="Myelin.UI.Views.WebPreviewView">
+
+    <Grid RowDefinitions="38,*">
+        <!-- Browser Navigation Bar -->
+        <Border Grid.Row="0" Background="#252526" BorderBrush="#333333" BorderThickness="0,0,0,1" Padding="8,4">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <!-- Navigation controls -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" Margin="0,0,8,0">
+                    <Button Click="OnRefreshClicked"
+                            Background="Transparent" BorderThickness="0" Width="28" Height="28" Padding="0" CornerRadius="3"
+                            ToolTip.Tip="Reload Page">
+                        <Path Data="{StaticResource IconRefresh}" Width="13" Height="13" Fill="#CCCCCC" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Button>
+                </StackPanel>
+
+                <!-- URL Bar -->
+                <TextBox Grid.Column="1" x:Name="UrlTextBox"
+                         FontSize="12"
+                         Height="28"
+                         Background="#1E1E1E"
+                         Foreground="#FFFFFF"
+                         BorderBrush="#3C3C3C"
+                         BorderThickness="1"
+                         CornerRadius="4"
+                         Padding="8,4"
+                         KeyDown="OnUrlKeyDown" />
+
+                <!-- External Actions -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="8,0,0,0">
+                    <!-- Status Badge -->
+                    <Border Background="#04395E" BorderBrush="#0078D4" BorderThickness="1" CornerRadius="3" Padding="6,2">
+                        <TextBlock Text="LIVE" FontSize="10" FontWeight="Bold" Foreground="#75BEFF" />
+                    </Border>
+
+                    <Button Click="OnOpenInExternalBrowserClicked"
+                            Background="#333333" BorderBrush="#444444" BorderThickness="1" Padding="8,4" CornerRadius="3"
+                            ToolTip.Tip="Open in Default Web Browser">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <Path Data="{StaticResource IconLink}" Width="11" Height="11" Fill="#CCCCCC" Stretch="Uniform" />
+                            <TextBlock Text="Browser" FontSize="11" Foreground="#CCCCCC" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Browser Content View Area -->
+        <Border Grid.Row="1" Background="#1E1E1E">
+            <Grid>
+                <!-- Embedded Frame / Info Panel -->
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="16" Margin="32">
+                    <Border Background="#252526" BorderBrush="#333333" BorderThickness="1" CornerRadius="8" Padding="24" Width="480">
+                        <StackPanel Spacing="12">
+                            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                                <Path Data="{StaticResource IconLink}" Width="20" Height="20" Fill="#0078D4" Stretch="Uniform" />
+                                <TextBlock Text="Local Live Web Preview" FontSize="16" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                            </StackPanel>
+
+                            <TextBlock x:Name="UrlDisplayBlock" Text="http://127.0.0.1:5500/" FontSize="13" Foreground="#75BEFF" HorizontalAlignment="Center" />
+
+                            <TextBlock Text="Server is running and listening for connections with automatic live reload on file save." 
+                                       FontSize="12" Foreground="#858585" TextWrapping="Wrap" TextAlignment="Center" />
+
+                            <Button Click="OnOpenInExternalBrowserClicked" 
+                                    Background="#0078D4" Foreground="#FFFFFF" FontWeight="SemiBold"
+                                    HorizontalAlignment="Center" Padding="16,8" CornerRadius="4" Margin="0,8,0,0">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Path Data="{StaticResource IconLink}" Width="13" Height="13" Fill="White" Stretch="Uniform" />
+                                    <TextBlock Text="Open in Default Browser" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

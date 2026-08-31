@@ -89,6 +89,9 @@ namespace Myelin.UI.ViewModels
         private string _buildOutput = "Myelin Build Engine Ready.\n";
 
         [ObservableProperty]
+        private DebugConsoleViewModel _debugConsole = new();
+
+        [ObservableProperty]
         private ObservableCollection<ProblemItem> _problems = new();
 
         [ObservableProperty]
@@ -114,6 +117,7 @@ namespace Myelin.UI.ViewModels
         public BottomPanelViewModel()
         {
             _workingDirectory = Directory.GetCurrentDirectory();
+            LanguageServerService.Instance.DiagnosticsReceived += UpdateDiagnostics;
 
             // Discover host terminal profiles
             try
@@ -132,6 +136,30 @@ namespace Myelin.UI.ViewModels
 
             // Create initial terminal tab with default profile
             CreateTerminalTab(SelectedProfile);
+        }
+
+        public void UpdateDiagnostics(string filePath, LspDiagnostic[] diagnostics)
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                var toRemove = Problems.Where(p => string.Equals(p.File, filePath, StringComparison.OrdinalIgnoreCase)).ToList();
+                foreach (var p in toRemove) Problems.Remove(p);
+
+                foreach (var d in diagnostics)
+                {
+                    Problems.Add(new ProblemItem
+                    {
+                        File = filePath,
+                        Line = d.Range.Start.Line + 1,
+                        Column = d.Range.Start.Character + 1,
+                        Message = d.Message,
+                        Severity = d.Severity == LspDiagnosticSeverity.Error ? "Error" : "Warning"
+                    });
+                }
+
+                ErrorCount = Problems.Count(p => p.Severity == "Error");
+                WarningCount = Problems.Count(p => p.Severity == "Warning");
+            });
         }
 
         public void SetWorkingDirectory(string path)

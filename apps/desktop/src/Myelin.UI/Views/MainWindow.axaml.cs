@@ -36,6 +36,7 @@ namespace Myelin.UI.Views
                 _currentVm.RequestOpenFile -= OnRequestOpenFile;
                 _currentVm.RequestOpenFolder -= OnRequestOpenFolder;
                 _currentVm.ClipboardTextRequested -= OnClipboardTextRequested;
+                _currentVm.RequestSetClipboard -= OnRequestSetClipboard;
                 _currentVm = null;
             }
 
@@ -45,6 +46,16 @@ namespace Myelin.UI.Views
                 vm.RequestOpenFile += OnRequestOpenFile;
                 vm.RequestOpenFolder += OnRequestOpenFolder;
                 vm.ClipboardTextRequested += OnClipboardTextRequested;
+                vm.RequestSetClipboard += OnRequestSetClipboard;
+            }
+        }
+
+        private async void OnRequestSetClipboard(string text)
+        {
+            var topLevel = GetTopLevel(this);
+            if (topLevel?.Clipboard != null)
+            {
+                await topLevel.Clipboard.SetTextAsync(text);
             }
         }
 
@@ -122,12 +133,34 @@ namespace Myelin.UI.Views
 
         private void OnFileSelected(object? sender, SelectionChangedEventArgs e)
         {
-            if (e.AddedItems.Count > 0 && e.AddedItems[0] is FileNode node && !node.IsDirectory)
+            if (e.AddedItems.Count > 0 && e.AddedItems[0] is FileNode node)
             {
                 if (DataContext is MainWindowViewModel vm)
                 {
-                    vm.OpenFile(node.Path);
+                    vm.SelectedNode = node;
+                    if (!node.IsDirectory)
+                    {
+                        vm.OpenFile(node.Path);
+                    }
                 }
+            }
+        }
+
+        private void OnSearchKeyDown(object? sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter && DataContext is MainWindowViewModel vm)
+            {
+                _ = vm.Search.SearchAsync();
+                e.Handled = true;
+            }
+        }
+
+        private void OnCommitKeyDown(object? sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter && (e.KeyModifiers & KeyModifiers.Control) != 0 && DataContext is MainWindowViewModel vm)
+            {
+                _ = vm.SourceControl.CommitAsync();
+                e.Handled = true;
             }
         }
 
@@ -168,6 +201,15 @@ namespace Myelin.UI.Views
             {
                 vm.BottomPanel.IsOpen = true;
                 vm.BottomPanel.SelectedTabIndex = 2;
+            }
+        }
+
+        private void OnDebugConsoleTabClick(object? sender, RoutedEventArgs e)
+        {
+            if (DataContext is MainWindowViewModel vm)
+            {
+                vm.BottomPanel.IsOpen = true;
+                vm.BottomPanel.SelectedTabIndex = 3;
             }
         }
 
@@ -568,6 +610,67 @@ namespace Myelin.UI.Views
         private void OnCloseWindowClick(object? sender, RoutedEventArgs e)
         {
             Close();
+        }
+
+        private void OnTabPointerPressed(object? sender, PointerPressedEventArgs e)
+        {
+            var props = e.GetCurrentPoint(sender as Avalonia.Visual).Properties;
+            if (props.IsMiddleButtonPressed)
+            {
+                if (sender is Control control && control.DataContext is DocumentTabViewModel tab)
+                {
+                    if (DataContext is MainWindowViewModel vm)
+                    {
+                        vm.CloseTab(tab);
+                        e.Handled = true;
+                    }
+                }
+            }
+        }
+
+        private void OnOpenEditorItemPointerPressed(object? sender, PointerPressedEventArgs e)
+        {
+            var props = e.GetCurrentPoint(sender as Avalonia.Visual).Properties;
+            if (props.IsMiddleButtonPressed)
+            {
+                if (sender is Control control && control.DataContext is DocumentTabViewModel tab)
+                {
+                    if (DataContext is MainWindowViewModel vm)
+                    {
+                        vm.CloseTab(tab);
+                        e.Handled = true;
+                    }
+                }
+            }
+        }
+
+        private void OnTerminalTabItemPointerPressed(object? sender, PointerPressedEventArgs e)
+        {
+            var props = e.GetCurrentPoint(sender as Avalonia.Visual).Properties;
+            if (props.IsMiddleButtonPressed)
+            {
+                if (sender is Control control && control.DataContext is TerminalTabItem tab)
+                {
+                    if (DataContext is MainWindowViewModel vm)
+                    {
+                        vm.BottomPanel.CloseTerminalTab(tab);
+                        e.Handled = true;
+                    }
+                }
+            }
+        }
+
+        private void OnBottomPanelTabPointerPressed(object? sender, PointerPressedEventArgs e)
+        {
+            var props = e.GetCurrentPoint(sender as Avalonia.Visual).Properties;
+            if (props.IsMiddleButtonPressed)
+            {
+                if (DataContext is MainWindowViewModel vm)
+                {
+                    vm.BottomPanel.Close();
+                    e.Handled = true;
+                }
+            }
         }
 
         private void OnExitClick(object? sender, RoutedEventArgs e)

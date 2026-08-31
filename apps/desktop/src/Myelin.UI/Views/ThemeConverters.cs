@@ -234,6 +234,20 @@ namespace Myelin.UI.Views
         public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotImplementedException();
     }
 
+    public class BooleanBrushConverter : IValueConverter
+    {
+        public static readonly BooleanBrushConverter Instance = new();
+        private static readonly IBrush TrueBrush = new ImmutableSolidColorBrush(Color.Parse("#38BDF8"));
+        private static readonly IBrush FalseBrush = new ImmutableSolidColorBrush(Color.Parse("#858585"));
+
+        public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        {
+            return value is true ? TrueBrush : FalseBrush;
+        }
+
+        public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotImplementedException();
+    }
+
     public class TabBorderConverter : IValueConverter
     {
         public static readonly TabBorderConverter Instance = new();
@@ -329,17 +343,31 @@ namespace Myelin.UI.Views
     public class SidebarColumnWidthConverter : IValueConverter
     {
         public static readonly SidebarColumnWidthConverter Instance = new();
+        public static double LastWidth { get; set; } = 260;
 
         public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
         {
-            if (value is true)
+            if (value is bool isOpen)
             {
-                return new GridLength(260, GridUnitType.Pixel);
+                return isOpen ? new GridLength(LastWidth >= 160 ? LastWidth : 260, GridUnitType.Pixel) : new GridLength(0, GridUnitType.Pixel);
+            }
+            if (value is double width && width >= 160)
+            {
+                LastWidth = width;
+                return new GridLength(width, GridUnitType.Pixel);
             }
             return new GridLength(0, GridUnitType.Pixel);
         }
 
-        public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotImplementedException();
+        public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        {
+            if (value is GridLength gl && gl.IsAbsolute && gl.Value >= 160)
+            {
+                LastWidth = gl.Value;
+                return gl.Value;
+            }
+            return null;
+        }
     }
 
     public class GitStatusBrushConverter : IValueConverter
@@ -411,6 +439,60 @@ namespace Myelin.UI.Views
         public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
         {
             return value is true ? ActiveBrush : InactiveBrush;
+        }
+
+        public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotImplementedException();
+    }
+
+    public class PaletteItemIconConverter : IValueConverter
+    {
+        public static readonly PaletteItemIconConverter Instance = new();
+
+        public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        {
+            string key = value as string ?? "IconCommand";
+            if (Application.Current != null && Application.Current.Resources.TryGetResource(key, null, out var res))
+            {
+                return res;
+            }
+            if (Application.Current != null && Application.Current.Resources.TryGetResource("IconCommand", null, out var fallback))
+            {
+                return fallback;
+            }
+            return null;
+        }
+
+        public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotImplementedException();
+    }
+
+    public class PaletteItemBrushConverter : IValueConverter
+    {
+        public static readonly PaletteItemBrushConverter Instance = new();
+
+        private static readonly IBrush BlueBrush = new ImmutableSolidColorBrush(Color.Parse("#0078D4"));
+        private static readonly IBrush GreenBrush = new ImmutableSolidColorBrush(Color.Parse("#4EC9B0"));
+        private static readonly IBrush OrangeBrush = new ImmutableSolidColorBrush(Color.Parse("#F05032"));
+        private static readonly IBrush YellowBrush = new ImmutableSolidColorBrush(Color.Parse("#CCA700"));
+        private static readonly IBrush PurpleBrush = new ImmutableSolidColorBrush(Color.Parse("#C586C0"));
+        private static readonly IBrush LightBlueBrush = new ImmutableSolidColorBrush(Color.Parse("#75BEFF"));
+        private static readonly IBrush GrayBrush = new ImmutableSolidColorBrush(Color.Parse("#CCCCCC"));
+
+        public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        {
+            if (value is string key)
+            {
+                if (key.Contains("Debug") || key.Contains("Play") || key.Contains("Step") || key.Contains("Restart")) return GreenBrush;
+                if (key.Contains("Git") || key.Contains("Branch") || key.Contains("SourceControl")) return OrangeBrush;
+                if (key.Contains("Remote") || key.Contains("Ssh") || key.Contains("Server")) return LightBlueBrush;
+                if (key.Contains("Terminal")) return YellowBrush;
+                if (key.Contains("Extension")) return PurpleBrush;
+                if (key.Contains("Warning")) return YellowBrush;
+                if (key.Contains("Error")) return OrangeBrush;
+                if (key.Contains("Settings")) return GrayBrush;
+                if (key.Contains("File") || key.Contains("Folder")) return GrayBrush;
+                return BlueBrush;
+            }
+            return BlueBrush;
         }
 
         public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotImplementedException();

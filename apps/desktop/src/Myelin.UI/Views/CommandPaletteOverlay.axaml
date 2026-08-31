@@ -53,7 +53,10 @@
                                     <Image Source="{Binding FilePath, Converter={x:Static views:MaterialIconImageConverter.Instance}}" 
                                            Width="16" Height="16" 
                                            IsVisible="{Binding IsFile}" />
-                                    <Path Data="{StaticResource IconCommand}" Width="14" Height="14" Fill="#0078D4" Stretch="Uniform" 
+                                    <Path Data="{Binding IconKey, Converter={x:Static views:PaletteItemIconConverter.Instance}}" 
+                                          Width="14" Height="14" 
+                                          Fill="{Binding IconKey, Converter={x:Static views:PaletteItemBrushConverter.Instance}}" 
+                                          Stretch="Uniform" 
                                           IsVisible="{Binding !IsFile}" />
                                 </Panel>
 
